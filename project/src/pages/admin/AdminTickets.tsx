@@ -1,30 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download } from 'lucide-react'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
 
 type FilterStatus = 'all' | TicketStatus
-
-async function getFunctionErrorMessage(error: unknown) {
-  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
-    try {
-      const body: unknown = await error.context.json()
-      if (
-        typeof body === 'object' &&
-        body !== null &&
-        'error' in body &&
-        typeof body.error === 'string'
-      ) {
-        return body.error
-      }
-    } catch {
-      return error.message
-    }
-  }
-
-  return error instanceof Error ? error.message : 'Erreur inconnue'
-}
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
@@ -104,20 +83,19 @@ export default function AdminTickets() {
     setRejectNotes('')
   }
 
-  const sendDecisionEmail = async (requestId: string) => {
+  const sendDecisionPush = async (requestId: string) => {
     setActionLoading(true)
     setRequestError(null)
-    const { data, error } = await supabase.functions.invoke('send-ticket-decision-email', {
+    const { data, error } = await supabase.functions.invoke('send-ticket-decision-push', {
       body: { request_id: requestId },
     })
     await loadRequests()
     if (error) {
-      const message = await getFunctionErrorMessage(error)
-      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${message}`)
+      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${error.message}`)
     } else if (data?.status === 'failed') {
-      setRequestError(`L’email n’a pas pu être envoyé : ${data.error || 'erreur OneSignal inconnue'}`)
+      setRequestError(`La notification push n’a pas pu être envoyée : ${data.error || 'erreur OneSignal inconnue'}`)
     } else if (data?.status === 'sending') {
-      setRequestError('L’envoi de l’email est déjà en cours. Réessayez dans quelques instants.')
+      setRequestError('La notification push est déjà en cours d’envoi. Réessayez dans quelques instants.')
     }
     setActionLoading(false)
   }
@@ -137,15 +115,14 @@ export default function AdminTickets() {
       return
     }
 
-    const { data, error: emailError } = await supabase.functions.invoke('send-ticket-decision-email', {
+    const { data, error: pushError } = await supabase.functions.invoke('send-ticket-decision-push', {
       body: { request_id: request.id },
     })
     await Promise.all([loadRequests(), loadTickets()])
-    if (emailError) {
-      const message = await getFunctionErrorMessage(emailError)
-      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${message}`)
+    if (pushError) {
+      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${pushError.message}`)
     } else if (data?.status === 'failed') {
-      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${data.error || 'erreur OneSignal inconnue'}`)
+      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${data.error || 'erreur OneSignal inconnue'}`)
     }
     setActionLoading(false)
   }
@@ -237,14 +214,14 @@ export default function AdminTickets() {
                     : request.status === 'approved'
                       ? { className: 'badge-approved', label: 'Validée' }
                       : { className: 'badge-rejected', label: 'Refusée' }
-                  const emailStatus = request.email_status === 'sent'
-                    ? 'Email envoyé'
-                    : request.email_status === 'sending'
-                      ? 'Email en cours'
-                      : request.email_status === 'failed'
-                        ? 'Échec email'
-                        : request.email_status === 'pending'
-                          ? 'Email à envoyer'
+                  const pushStatus = request.push_status === 'sent'
+                    ? 'Notification push envoyée'
+                    : request.push_status === 'sending'
+                      ? 'Notification push en cours'
+                      : request.push_status === 'failed'
+                        ? 'Échec de la notification push'
+                        : request.push_status === 'pending' && request.status !== 'pending'
+                          ? 'Notification push à envoyer'
                           : null
 
                   return (
@@ -263,8 +240,8 @@ export default function AdminTickets() {
                       </td>
                       <td className="px-4 py-4">
                         <span className={`badge ${requestStatus.className}`}>{requestStatus.label}</span>
-                        {emailStatus && <p className={`mt-2 text-xs ${request.email_status === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>{emailStatus}</p>}
-                        {request.email_error && <p className="mt-1 max-w-56 text-xs text-red-600">{request.email_error}</p>}
+                        {pushStatus && <p className={`mt-2 text-xs ${request.push_status === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>{pushStatus}</p>}
+                        {request.push_error && <p className="mt-1 max-w-56 text-xs text-red-600">{request.push_error}</p>}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap justify-end gap-2">
@@ -278,9 +255,9 @@ export default function AdminTickets() {
                               </button>
                             </>
                           )}
-                          {request.status !== 'pending' && request.email_status !== 'sent' && (
-                            <button onClick={() => sendDecisionEmail(request.id)} className="btn-secondary px-3 py-2 text-xs" disabled={actionLoading}>
-                              Renvoyer l’email
+                          {request.status !== 'pending' && request.push_status !== 'sent' && (
+                            <button onClick={() => sendDecisionPush(request.id)} className="btn-secondary px-3 py-2 text-xs" disabled={actionLoading}>
+                              Renvoyer la notification push
                             </button>
                           )}
                         </div>

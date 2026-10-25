@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const defaultAdminEmails = ['francktazoh@gmail.com', 'admin@gmail.com']
+const adminEmail = 'tazohdunil@gmail.com'
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -36,12 +36,8 @@ Deno.serve(async request => {
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
   const fromEmail = Deno.env.get('RESEND_FROM_EMAIL')
   const siteUrl = Deno.env.get('SITE_URL')?.replace(/\/+$/, '')
-  const recipients = (Deno.env.get('ADMIN_NOTIFICATION_EMAILS') || defaultAdminEmails.join(','))
-    .split(',')
-    .map(email => email.trim())
-    .filter(Boolean)
 
-  if (!authorization || !supabaseUrl || !supabaseAnonKey || !resendApiKey || !fromEmail || !siteUrl || recipients.length === 0) {
+  if (!authorization || !supabaseUrl || !supabaseAnonKey || !resendApiKey || !fromEmail || !siteUrl) {
     return jsonResponse({ error: 'Resend email notification service is not configured' }, 500)
   }
 
@@ -96,7 +92,7 @@ Deno.serve(async request => {
       },
       body: JSON.stringify({
         from: fromEmail,
-        to: recipients,
+        to: [adminEmail],
         subject: `Nouvelle demande de billet - ${notification.full_name}`,
         html: emailHtml,
       }),

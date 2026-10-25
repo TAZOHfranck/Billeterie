@@ -56,7 +56,7 @@ export interface TicketWithRelations extends Ticket {
 }
 
 export type TicketRequestStatus = 'pending' | 'approved' | 'rejected'
-export type DecisionEmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | null
+export type PushNotificationStatus = 'pending' | 'sending' | 'sent' | 'failed'
 
 export interface TicketRequest {
   id: string
@@ -71,8 +71,8 @@ export interface TicketRequest {
   status: TicketRequestStatus
   admin_notes: string
   ticket_id: string | null
-  email_status: DecisionEmailStatus
-  email_error: string | null
+  push_status: PushNotificationStatus
+  push_error: string | null
   created_at: string
   updated_at: string
   decided_at: string | null

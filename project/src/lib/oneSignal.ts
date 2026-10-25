@@ -36,3 +36,17 @@ export function initializeOneSignal(): Promise<void> {
 
   return initialization
 }
+
+export async function identifyOneSignalUser(userId: string | null): Promise<void> {
+  await initializeOneSignal()
+  if (userId) {
+    await OneSignal.login(userId)
+  } else {
+    await OneSignal.logout()
+  }
+}
+
+export async function requestOneSignalPermission(userId: string): Promise<boolean> {
+  await identifyOneSignalUser(userId)
+  return OneSignal.Notifications.requestPermission()
+}

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { identifyOneSignalUser } from '../lib/oneSignal'
 
 interface AuthResult {
   error: string | null
@@ -56,6 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       listener.subscription.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (loading) return
+    identifyOneSignalUser(session?.user.id ?? null).catch((error: unknown) => {
+      console.error('OneSignal user identification failed:', error)
+    })
+  }, [loading, session?.user.id])
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })

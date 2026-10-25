@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Calendar, Loader2, LogOut, Ticket as TicketIcon } from 'lucide-react'
+import { ArrowLeft, Bell, Calendar, Loader2, LogOut, Ticket as TicketIcon } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { requestOneSignalPermission } from '../../lib/oneSignal'
 import { TicketRequest, TicketWithRelations } from '../../types'
 
 export default function MyTicketsPage() {
@@ -12,6 +13,7 @@ export default function MyTicketsPage() {
   const [requests, setRequests] = useState<TicketRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pushMessage, setPushMessage] = useState<string | null>(null)
   const notificationWarning = typeof location.state === 'object' &&
     location.state !== null &&
     'notificationWarning' in location.state &&
@@ -47,6 +49,18 @@ export default function MyTicketsPage() {
     used: 'Utilisé',
   }
   const hasReservations = requests.length > 0 || tickets.length > 0
+  const enablePushNotifications = async () => {
+    if (!user) return
+    setPushMessage(null)
+    try {
+      const enabled = await requestOneSignalPermission(user.id)
+      setPushMessage(enabled
+        ? 'Les notifications push sont activées sur cet appareil.'
+        : 'Les notifications ne sont pas autorisées. Vérifiez les réglages de votre navigateur.')
+    } catch {
+      setPushMessage('Impossible d’activer les notifications. Vérifiez que votre navigateur les prend en charge.')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#100806] px-4 py-6 text-white sm:px-6 sm:py-10">
@@ -55,7 +69,7 @@ export default function MyTicketsPage() {
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-gray-300 hover:text-accent-300"><ArrowLeft className="h-4 w-4" /> Accueil</Link>
           <button onClick={() => signOut()} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white"><LogOut className="h-4 w-4" /> Déconnexion</button>
         </div>
-        <div className="mb-8"><p className="text-xs font-bold uppercase tracking-[0.3em] text-accent-300">Espace personnel</p><h1 className="display-font mt-2 text-5xl font-bold text-white">Mes réservations</h1><p className="mt-2 text-sm text-gray-400">Retrouvez ici vos demandes en attente et vos billets validés.</p></div>
+        <div className="mb-8"><p className="text-xs font-bold uppercase tracking-[0.3em] text-accent-300">Espace personnel</p><h1 className="display-font mt-2 text-5xl font-bold text-white">Mes réservations</h1><p className="mt-2 text-sm text-gray-400">Retrouvez ici vos demandes en attente et vos billets validés.</p><button onClick={enablePushNotifications} className="btn-secondary mt-4 inline-flex items-center gap-2"><Bell className="h-4 w-4" /> Activer les notifications push</button>{pushMessage && <p role="status" className="mt-2 text-sm text-gray-300">{pushMessage}</p>}</div>
 
         {error && <div className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
         {notificationWarning && <div role="status" className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{notificationWarning}</div>}
@@ -80,7 +94,7 @@ export default function MyTicketsPage() {
                 {request.admin_notes && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{request.admin_notes}</p>}
                 {request.status === 'pending' && <p className="mt-3 text-sm text-amber-700">Votre demande est en cours de vérification. Aucun billet n’a encore été émis.</p>}
                 {request.status === 'approved' && request.ticket?.qr_token && <Link to={`/ticket/${request.ticket.qr_token}`} className="btn-primary mt-4 inline-flex">Afficher le billet validé</Link>}
-                {request.status === 'rejected' && <p className="mt-3 text-sm text-red-700">La demande a été refusée. Consultez votre email pour plus d’informations.</p>}
+                {request.status === 'rejected' && <p className="mt-3 text-sm text-red-700">La demande a été refusée. Consultez votre notification push pour plus d’informations.</p>}
               </div>
             ))}
             {tickets.map(ticket => <Link key={ticket.id} to={`/ticket/${ticket.qr_token}`} className="block rounded-2xl border border-accent-400/30 bg-[#fffdf7] p-5 text-gray-900 transition hover:-translate-y-0.5 hover:border-accent-400 sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-accent-700">{ticket.table?.name || 'Billet événement'}</p><h2 className="mt-1 text-lg font-bold">{ticket.full_name}</h2></div><span className={`badge ${ticket.status === 'approved' ? 'badge-approved' : ticket.status === 'rejected' ? 'badge-rejected' : ticket.status === 'used' ? 'badge-used' : 'badge-pending'}`}>{statusLabel[ticket.status]}</span></div><div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-500"><span className="inline-flex items-center gap-1"><Calendar className="h-4 w-4" /> {new Date(ticket.created_at).toLocaleDateString('fr-FR')}</span><span>{ticket.quantity} place(s)</span><span className="font-mono text-xs">{ticket.qr_token.slice(0, 8)}...</span></div></Link>)}
