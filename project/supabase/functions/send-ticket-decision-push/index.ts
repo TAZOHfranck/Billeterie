@@ -25,8 +25,18 @@ Deno.serve(async request => {
   const oneSignalApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY')
   const siteUrl = Deno.env.get('SITE_URL')?.replace(/\/+$/, '')
 
-  if (!authorization || !supabaseUrl || !supabaseAnonKey || !oneSignalApiKey || !siteUrl) {
-    return jsonResponse({ error: 'OneSignal push notification service is not configured' }, 500)
+  const missingConfiguration = [
+    !authorization && 'Authorization',
+    !supabaseUrl && 'SUPABASE_URL',
+    !supabaseAnonKey && 'SUPABASE_ANON_KEY',
+    !oneSignalApiKey && 'ONESIGNAL_REST_API_KEY',
+    !siteUrl && 'SITE_URL',
+  ].filter(Boolean)
+  if (missingConfiguration.length) {
+    console.error('OneSignal push configuration is missing:', missingConfiguration)
+    return jsonResponse({
+      error: `OneSignal push configuration is missing: ${missingConfiguration.join(', ')}`,
+    }, 500)
   }
 
   let requestId: string

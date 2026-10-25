@@ -27,7 +27,7 @@ export function initializeOneSignal(): Promise<void> {
           'tip.state.unsubscribed': 'Cliquez pour vous abonner aux notifications',
         },
       },
-      serviceWorkerPath: 'OneSignalSDKWorker.js',
+      serviceWorkerPath: '/OneSignalSDKWorker.js',
     }).catch((error: unknown) => {
       initialization = undefined
       throw error
@@ -48,5 +48,15 @@ export async function identifyOneSignalUser(userId: string | null): Promise<void
 
 export async function requestOneSignalPermission(userId: string): Promise<boolean> {
   await identifyOneSignalUser(userId)
+  if (!OneSignal.Notifications.isPushSupported()) {
+    throw new Error('Push notifications are not supported in this browser')
+  }
+
+  if (Notification.permission === 'denied') return false
+  const registration = await navigator.serviceWorker.ready
+  if (!registration.active) {
+    throw new Error('OneSignal service worker is not active')
+  }
+
   return OneSignal.Notifications.requestPermission()
 }
