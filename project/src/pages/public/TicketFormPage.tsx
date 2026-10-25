@@ -14,6 +14,7 @@ export default function TicketFormPage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [accountMessage, setAccountMessage] = useState<string | null>(null)
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [accountMode, setAccountMode] = useState<'signin' | 'signup'>('signin')
@@ -46,6 +47,7 @@ export default function TicketFormPage() {
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setAccountMessage(null)
     if (accountPhone.replace(/\D/g, '').length < 8) {
       setError('Veuillez saisir un numéro de téléphone valide')
       return
@@ -60,7 +62,12 @@ export default function TicketFormPage() {
       ? await signInWithPhone(accountPhone, accountPassword)
       : await signUpWithPhone(accountPhone, accountPassword)
     setAccountLoading(false)
-    if (result.error) setError(result.error)
+    if (result.error) {
+      setError(result.error)
+    } else if (result.message) {
+      setAccountMessage(result.message)
+      setAccountMode('signin')
+    }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,6 +185,11 @@ export default function TicketFormPage() {
             {error}
           </div>
         )}
+        {accountMessage && (
+          <div role="status" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {accountMessage}
+          </div>
+        )}
 
         {!user ? (
           <div className="rounded-2xl border border-accent-400/30 bg-[#fffdf7] p-5 shadow-[0_18px_60px_rgba(0,0,0,.35)] sm:p-8">
@@ -197,7 +209,7 @@ export default function TicketFormPage() {
               </div>
               <button type="submit" disabled={accountLoading} className="btn-primary w-full">{accountLoading ? 'Connexion en cours...' : accountMode === 'signin' ? 'Se connecter' : 'Créer mon compte'}</button>
             </form>
-            <button type="button" onClick={() => { setAccountMode(accountMode === 'signin' ? 'signup' : 'signin'); setError(null) }} className="mt-5 block w-full text-center text-sm font-medium text-accent-700 hover:underline">
+            <button type="button" onClick={() => { setAccountMode(accountMode === 'signin' ? 'signup' : 'signin'); setError(null); setAccountMessage(null) }} className="mt-5 block w-full text-center text-sm font-medium text-accent-700 hover:underline">
               {accountMode === 'signin' ? 'Je n’ai pas encore de compte' : 'J’ai déjà un compte'}
             </button>
           </div>

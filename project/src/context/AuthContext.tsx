@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 
 interface AuthResult {
   error: string | null
+  message?: string
 }
 
 interface AuthContextType {
@@ -23,10 +24,14 @@ function phoneAccountEmail(phone: string) {
   return `customer_${digits}@ticketing.local`
 }
 
-function authErrorMessage(message: string) {
-  if (message.toLowerCase().includes('invalid login credentials')) return 'Numéro ou mot de passe incorrect.'
-  if (message.toLowerCase().includes('already registered')) return 'Ce numéro possède déjà un compte. Connectez-vous.'
-  if (message.toLowerCase().includes('password')) return 'Le mot de passe doit contenir au moins 6 caractères.'
+function authErrorMessage(message: string, status?: number) {
+  const normalizedMessage = message.toLowerCase()
+  if (status === 429 || normalizedMessage.includes('too many requests') || normalizedMessage.includes('rate limit')) {
+    return 'Trop de tentatives d’inscription ou de connexion. Attendez quelques minutes avant de réessayer. Cette limite est appliquée par Supabase.'
+  }
+  if (normalizedMessage.includes('invalid login credentials')) return 'Numéro ou mot de passe incorrect.'
+  if (normalizedMessage.includes('already registered')) return 'Ce numéro possède déjà un compte. Connectez-vous.'
+  if (normalizedMessage.includes('password')) return 'Le mot de passe doit contenir au moins 6 caractères.'
   return 'Impossible de traiter la demande pour le moment.'
 }
 
@@ -51,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) return { error: authErrorMessage(error.message) }
+    if (error) return { error: authErrorMessage(error.message, error.status) }
     setSession(data.session)
     return { error: null }
   }
@@ -68,8 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { data: { phone: phone.trim() } },
     })
 
-    if (error) return { error: authErrorMessage(error.message) }
-    if (!data.session) return signIn(email, password)
+    if (error) return { error: authErrorMessage(error.message, error.status) }
+    if (!data.session) {
+      return {
+        error: null,
+        message: 'Le compte a été créé, mais Supabase exige une confirmation par email. Cette application utilise une adresse interne liée au téléphone, qui ne peut pas recevoir de confirmation. Contactez l’administrateur pour confirmer votre compte ou désactiver la confirmation email dans Supabase.',
+      }
+    }
     return { error: null }
   }
 
