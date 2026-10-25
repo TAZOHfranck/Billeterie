@@ -21,6 +21,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const ADMIN_EMAILS = new Set(['francktazoh@gmail.com', 'admin@gmail.com'])
+
+function isAdminEmail(email: string | undefined): boolean {
+  return email !== undefined && ADMIN_EMAILS.has(email.trim().toLowerCase())
+}
+
 function authErrorMessage(message: string, status?: number) {
   const normalizedMessage = message.toLowerCase()
   if (status === 429 || normalizedMessage.includes('too many requests') || normalizedMessage.includes('rate limit')) {
@@ -55,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error: authErrorMessage(error.message, error.status) }
     setSession(data.session)
-    return { error: null, isAdmin: data.user.app_metadata?.role === 'admin' }
+    return { error: null, isAdmin: isAdminEmail(data.user.email) }
   }
 
   const signUp = async (email: string, password: string): Promise<AuthResult> => {
@@ -87,8 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       session,
       user: session?.user ?? null,
-      role: session?.user.app_metadata?.role === 'admin' ? 'admin' : 'user',
-      isAdmin: session?.user.app_metadata?.role === 'admin',
+      role: isAdminEmail(session?.user.email) ? 'admin' : 'user',
+      isAdmin: isAdminEmail(session?.user.email),
       loading,
       signIn,
       signUp,

@@ -1,38 +1,17 @@
-CREATE OR REPLACE FUNCTION public.set_default_auth_role()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-BEGIN
-  IF COALESCE(NEW.raw_app_meta_data ->> 'role', '') = '' THEN
-    NEW.raw_app_meta_data := jsonb_set(
-      COALESCE(NEW.raw_app_meta_data, '{}'::jsonb),
-      '{role}',
-      '"user"'::jsonb,
-      true
-    );
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.set_default_auth_role() FROM PUBLIC, anon, authenticated;
-
-DROP TRIGGER IF EXISTS set_default_auth_role ON auth.users;
-CREATE TRIGGER set_default_auth_role
-BEFORE INSERT ON auth.users
-FOR EACH ROW
-EXECUTE FUNCTION public.set_default_auth_role();
-
 CREATE OR REPLACE FUNCTION public.is_authenticated_user()
 RETURNS boolean
 LANGUAGE sql
 STABLE
-SET search_path = public, pg_temp
+SECURITY DEFINER
+SET search_path = ''
 AS $$
-  SELECT COALESCE(auth.jwt() -> 'app_metadata' ->> 'role' = 'admin', false);
+  SELECT EXISTS (
+    SELECT 1
+    FROM auth.users AS account
+    WHERE account.id = auth.uid()
+      AND account.email_confirmed_at IS NOT NULL
+      AND lower(account.email) IN ('francktazoh@gmail.com', 'admin@gmail.com')
+  );
 $$;
 
 REVOKE ALL ON FUNCTION public.is_authenticated_user() FROM PUBLIC, anon;
