@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, CheckCircle, Loader2, Calendar, MapPin, Phone, Lock } from 'lucide-react'
+import { ArrowLeft, Upload, CheckCircle, Loader2, Calendar, MapPin, Phone, Lock, Mail } from 'lucide-react'
 import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
 import { TableSeat, PaymentMethod, EventSettings } from '../../types'
 import { useAuth } from '../../context/AuthContext'
 
 export default function TicketFormPage() {
   const navigate = useNavigate()
-  const { user, signInWithPhone, signUpWithPhone } = useAuth()
+  const { user, signIn, signUp } = useAuth()
   const [tables, setTables] = useState<TableSeat[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [settings, setSettings] = useState<EventSettings | null>(null)
@@ -18,7 +18,7 @@ export default function TicketFormPage() {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [accountMode, setAccountMode] = useState<'signin' | 'signup'>('signin')
-  const [accountPhone, setAccountPhone] = useState('')
+  const [accountEmail, setAccountEmail] = useState('')
   const [accountPassword, setAccountPassword] = useState('')
   const [accountLoading, setAccountLoading] = useState(false)
 
@@ -44,12 +44,17 @@ export default function TicketFormPage() {
     })
   }, [])
 
+  useEffect(() => {
+    const email = user?.email
+    if (email) setFormData(current => ({ ...current, email }))
+  }, [user])
+
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setAccountMessage(null)
-    if (accountPhone.replace(/\D/g, '').length < 8) {
-      setError('Veuillez saisir un numéro de téléphone valide')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accountEmail.trim())) {
+      setError('Veuillez saisir une adresse email valide')
       return
     }
     if (accountPassword.length < 6) {
@@ -59,8 +64,8 @@ export default function TicketFormPage() {
 
     setAccountLoading(true)
     const result = accountMode === 'signin'
-      ? await signInWithPhone(accountPhone, accountPassword)
-      : await signUpWithPhone(accountPhone, accountPassword)
+      ? await signIn(accountEmail.trim(), accountPassword)
+      : await signUp(accountEmail.trim(), accountPassword)
     setAccountLoading(false)
     if (result.error) {
       setError(result.error)
@@ -196,12 +201,12 @@ export default function TicketFormPage() {
             <div className="mb-6 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#3a180e] text-accent-300"><Phone className="h-6 w-6" /></div>
               <h2 className="mt-4 text-xl font-bold text-gray-900">{accountMode === 'signin' ? 'Retrouver mon compte' : 'Créer mon compte'}</h2>
-              <p className="mt-2 text-sm leading-6 text-gray-500">Votre compte permet de retrouver vos billets même après avoir changé de téléphone ou de navigateur.</p>
+              <p className="mt-2 text-sm leading-6 text-gray-500">Connectez-vous avec votre email pour retrouver vos demandes et billets depuis n’importe quel appareil.</p>
             </div>
             <form onSubmit={handleAccountSubmit} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Numéro de téléphone</label>
-                <div className="relative"><Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" /><input type="tel" value={accountPhone} onChange={e => setAccountPhone(e.target.value)} className="input-field pl-11" placeholder="+237 6 73 24 97 91" required /></div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Adresse email</label>
+                <div className="relative"><Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" /><input type="email" autoComplete="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} className="input-field pl-11" placeholder="vous@exemple.com" required /></div>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Mot de passe</label>
@@ -255,12 +260,11 @@ export default function TicketFormPage() {
                 type="email"
                 autoComplete="email"
                 value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
                 className="input-field"
-                placeholder="vous@exemple.com"
+                readOnly
                 required
               />
-              <p className="mt-1 text-xs text-gray-500">Nous vous enverrons la décision de l’administration à cette adresse.</p>
+              <p className="mt-1 text-xs text-gray-500">L’adresse confirmée de votre compte recevra la décision de l’administration.</p>
             </div>
 
             <div>

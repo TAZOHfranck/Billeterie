@@ -4,7 +4,7 @@ import { Lock, Mail, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function AdminLogin() {
-  const { signIn } = useAuth()
+  const { signIn, signOut } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,9 +16,13 @@ export default function AdminLogin() {
     setError(null)
     setLoading(true)
 
-    const { error } = await signIn(email, password)
+    const { error, isAdmin } = await signIn(email.trim(), password)
     if (error) {
       setError(error)
+      setLoading(false)
+    } else if (!isAdmin) {
+      await signOut()
+      setError('Ce compte client ne possède pas le rôle admin.')
       setLoading(false)
     } else {
       navigate('/admin')
@@ -39,7 +43,7 @@ export default function AdminLogin() {
               <ShieldCheck className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Administration</h1>
-            <p className="text-gray-500 text-sm mt-1">Connectez-vous pour gérer l'événement</p>
+            <p className="text-gray-500 text-sm mt-1">Connectez-vous avec votre compte administrateur</p>
           </div>
 
           {error && (
@@ -54,7 +58,8 @@ export default function AdminLogin() {
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
-                  type="text"
+                  type="email"
+                  autoComplete="username"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="input-field pl-11"
