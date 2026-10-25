@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Calendar, Loader2, LogOut, Ticket as TicketIcon } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -7,10 +7,17 @@ import { TicketRequest, TicketWithRelations } from '../../types'
 
 export default function MyTicketsPage() {
   const { user, signOut } = useAuth()
+  const location = useLocation()
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
   const [requests, setRequests] = useState<TicketRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const notificationWarning = typeof location.state === 'object' &&
+    location.state !== null &&
+    'notificationWarning' in location.state &&
+    typeof location.state.notificationWarning === 'string'
+    ? location.state.notificationWarning
+    : null
 
   useEffect(() => {
     if (!user) return
@@ -51,6 +58,7 @@ export default function MyTicketsPage() {
         <div className="mb-8"><p className="text-xs font-bold uppercase tracking-[0.3em] text-accent-300">Espace personnel</p><h1 className="display-font mt-2 text-5xl font-bold text-white">Mes réservations</h1><p className="mt-2 text-sm text-gray-400">Retrouvez ici vos demandes en attente et vos billets validés.</p></div>
 
         {error && <div className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+        {notificationWarning && <div role="status" className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">{notificationWarning}</div>}
         {loading ? <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-accent-300" /></div> : !hasReservations ? (
           <div className="rounded-2xl border border-accent-400/30 bg-black/30 p-10 text-center"><TicketIcon className="mx-auto h-10 w-10 text-accent-300" /><p className="mt-4 text-gray-300">Aucune demande ni aucun billet associé à ce compte.</p><Link to="/reserve" className="btn-primary mt-6 inline-flex">Réserver un billet</Link></div>
         ) : (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { ArrowLeft, Calendar, MapPin, Phone, CheckCircle, Clock, XCircle, Loader2, Table2, CreditCard, Printer, Download, Scissors, ShieldCheck } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseUrl } from '../../lib/supabase'
 import { TicketWithRelations, EventSettings } from '../../types'
 
 export default function TicketStatusPage() {
@@ -54,17 +54,6 @@ export default function TicketStatusPage() {
   const eventLocation = settings?.event_location || 'À préciser'
   const total = ticket.table ? Number(ticket.table.price) * ticket.quantity : 0
 
-  const downloadTicket = () => {
-    const escapeHtml = (value: string) => value.replace(/[&<>'\"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '\"': '&quot;' })[character] || character)
-    const html = `<!doctype html><html lang="fr"><head><meta charset="UTF-8"><title>Billet - ${escapeHtml(eventName)}</title><style>body{font-family:Arial,sans-serif;background:#100806;color:#160806;padding:32px}.ticket{max-width:680px;margin:auto;background:#fffdf7;border:2px solid #d99b16;padding:32px;border-radius:16px}h1{margin:0 0 8px;color:#5b350c}h2{color:#b7791f}p{line-height:1.5}.qr{display:block;width:220px;margin:24px auto}.meta{border-top:1px solid #d99b16;margin-top:24px;padding-top:16px}</style></head><body><main class="ticket"><h1>${escapeHtml(eventName)}</h1><h2>Billet officiel</h2><p><strong>Nom :</strong> ${escapeHtml(ticket.full_name)}</p><p><strong>Téléphone :</strong> ${escapeHtml(ticket.phone)}</p><p><strong>Date :</strong> ${escapeHtml(eventDate.toLocaleDateString('fr-FR'))}</p><p><strong>Lieu :</strong> ${escapeHtml(eventLocation)}</p><p><strong>Table :</strong> ${escapeHtml(ticket.table?.name || 'N/A')}</p><p><strong>Places :</strong> ${ticket.quantity}</p><p><strong>Montant :</strong> ${total.toLocaleString()} F</p><img class="qr" src="${qrUrl || ''}" alt="QR code"><div class="meta"><strong>Code :</strong> ${escapeHtml(ticket.qr_token)}<br><br>Présentez ce billet à l'entrée.</div></main></body></html>`
-    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `billet-${ticket.qr_token}.html`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
     <div className="ticket-page min-h-screen bg-[#100806] px-3 py-6 sm:px-6 sm:py-10">
       <div className="no-print mx-auto mb-4 flex max-w-[760px] items-center justify-between">
@@ -111,7 +100,7 @@ export default function TicketStatusPage() {
         <footer className="flex flex-col items-start justify-between gap-4 border-t-2 border-dashed border-accent-400 bg-[#f7eee0] px-6 py-5 sm:flex-row sm:items-center sm:px-10"><div><p className="text-xs font-bold uppercase tracking-widest text-[#160806]">{eventName}</p><p className="mt-1 text-xs text-gray-500">Conservez ce billet jusqu'à l'entrée.</p></div><Scissors className="no-print h-5 w-5 rotate-90 text-accent-600" /></footer>
       </article>
 
-      <div className="no-print mx-auto mt-5 flex max-w-[760px] flex-col justify-center gap-3 sm:flex-row"><button onClick={() => window.print()} className="btn-primary inline-flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Imprimer / enregistrer en PDF</button><button onClick={downloadTicket} className="btn-secondary inline-flex items-center justify-center gap-2"><Download className="h-4 w-4" /> Télécharger le billet</button></div>
+      <div className="no-print mx-auto mt-5 flex max-w-[760px] flex-col justify-center gap-3 sm:flex-row"><button onClick={() => window.print()} className="btn-primary inline-flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Imprimer / enregistrer en PDF</button>{ticket.status === 'approved' || ticket.status === 'used' ? <a href={`${supabaseUrl}/functions/v1/download-ticket-pdf?token=${encodeURIComponent(ticket.qr_token)}`} className="btn-secondary inline-flex items-center justify-center gap-2"><Download className="h-4 w-4" /> Télécharger le billet PDF</a> : null}</div>
     </div>
   )
 }

@@ -126,7 +126,7 @@ export default function TicketFormPage() {
 
       if (uploadError) throw uploadError
 
-      const { error: insertError } = await supabase.rpc('submit_ticket_request', {
+      const { data: requestId, error: insertError } = await supabase.rpc('submit_ticket_request', {
         p_full_name: formData.full_name.trim(),
         p_phone: formData.phone.trim(),
         p_email: formData.email.trim(),
@@ -138,7 +138,14 @@ export default function TicketFormPage() {
 
       if (insertError) throw insertError
 
-      navigate('/my-tickets')
+      const { error: notificationError } = await supabase.functions.invoke('send-ticket-request-email', {
+        body: { request_id: requestId },
+      })
+      navigate('/my-tickets', {
+        state: notificationError
+          ? { notificationWarning: 'Votre demande est enregistrée, mais l’email de notification aux administrateurs n’a pas pu être envoyé.' }
+          : {},
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la soumission')
     } finally {
