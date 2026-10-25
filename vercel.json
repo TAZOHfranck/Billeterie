@@ -1,0 +1,28 @@
+{
+  "installCommand": "cd project && npm ci",
+  "buildCommand": "cd project && npm run build",
+  "outputDirectory": "project/dist",
+  "redirects": [
+    {
+      "source": "/tickets",
+      "destination": "/admin/tickets",
+      "permanent": false
+    },
+    {
+      "source": "/admin/default-icon",
+      "destination": "/default-icon.png",
+      "permanent": false
+    },
+    {
+      "source": "/vite.svg",
+      "destination": "/favicon.svg",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
