@@ -94,8 +94,14 @@ Deno.serve(async request => {
         app_id: appId,
         include_aliases: { external_id: [notification.user_id] },
         target_channel: 'push',
-        headings: { fr: approved ? 'Demande validée' : 'Demande refusée' },
+        headings: {
+          en: approved ? 'Request approved' : 'Request declined',
+          fr: approved ? 'Demande validée' : 'Demande refusée',
+        },
         contents: {
+          en: approved
+            ? `Your request for ${notification.event_name} has been approved. View your ticket.${reason}`
+            : `Your request for ${notification.event_name} has been declined.${reason}`,
           fr: approved
             ? `Votre demande pour ${notification.event_name} a été validée. Consultez votre billet.${reason}`
             : `Votre demande pour ${notification.event_name} a été refusée.${reason}`,
