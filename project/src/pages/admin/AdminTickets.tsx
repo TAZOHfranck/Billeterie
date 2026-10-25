@@ -1,9 +1,30 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download } from 'lucide-react'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
 
 type FilterStatus = 'all' | TicketStatus
+
+async function getFunctionErrorMessage(error: unknown) {
+  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+    try {
+      const body: unknown = await error.context.json()
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'error' in body &&
+        typeof body.error === 'string'
+      ) {
+        return body.error
+      }
+    } catch {
+      return error.message
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Erreur inconnue'
+}
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
@@ -91,7 +112,8 @@ export default function AdminTickets() {
     })
     await loadRequests()
     if (error) {
-      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${error.message}`)
+      const message = await getFunctionErrorMessage(error)
+      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${message}`)
     } else if (data?.status === 'failed') {
       setRequestError(`L’email n’a pas pu être envoyé : ${data.error || 'erreur OneSignal inconnue'}`)
     } else if (data?.status === 'sending') {
@@ -120,7 +142,8 @@ export default function AdminTickets() {
     })
     await Promise.all([loadRequests(), loadTickets()])
     if (emailError) {
-      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${emailError.message}`)
+      const message = await getFunctionErrorMessage(emailError)
+      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${message}`)
     } else if (data?.status === 'failed') {
       setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${data.error || 'erreur OneSignal inconnue'}`)
     }
