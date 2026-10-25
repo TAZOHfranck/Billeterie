@@ -169,7 +169,7 @@ export default function AdminTickets() {
   }
 
   const openTicket = (token: string) => {
-    window.open(`/ticket/${token}`, '_blank', 'noopener,noreferrer')
+    window.open(`/ticket/${token}`, 'noopener,noreferrer')
   }
 
   const exportCSV = () => {
