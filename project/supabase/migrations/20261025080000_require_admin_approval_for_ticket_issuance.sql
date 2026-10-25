@@ -1,14 +1,14 @@
-CREATE OR REPLACE FUNCTION public.is_admin()
+CREATE OR REPLACE FUNCTION public.is_authenticated_user()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 SET search_path = public, pg_temp
 AS $$
-  SELECT COALESCE(auth.jwt() -> 'app_metadata' ->> 'role' = 'admin', false);
+  SELECT auth.uid() IS NOT NULL;
 $$;
 
-REVOKE ALL ON FUNCTION public.is_admin() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+REVOKE ALL ON FUNCTION public.is_authenticated_user() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_authenticated_user() TO authenticated;
 
 CREATE TABLE IF NOT EXISTS public.ticket_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,7 +41,7 @@ DROP POLICY IF EXISTS "requesters_read_own_ticket_requests" ON public.ticket_req
 CREATE POLICY "requesters_read_own_ticket_requests"
 ON public.ticket_requests FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id OR public.is_admin());
+USING (auth.uid() = user_id OR public.is_authenticated_user());
 
 GRANT SELECT ON public.ticket_requests TO authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.ticket_requests FROM anon, authenticated;
@@ -50,43 +50,43 @@ DROP POLICY IF EXISTS "auth_update_event_settings" ON public.event_settings;
 DROP POLICY IF EXISTS "admin_update_event_settings" ON public.event_settings;
 CREATE POLICY "admin_update_event_settings"
 ON public.event_settings FOR UPDATE
-TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+TO authenticated USING (public.is_authenticated_user()) WITH CHECK (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_insert_tables" ON public.tables;
 DROP POLICY IF EXISTS "admin_insert_tables" ON public.tables;
 CREATE POLICY "admin_insert_tables"
 ON public.tables FOR INSERT
-TO authenticated WITH CHECK (public.is_admin());
+TO authenticated WITH CHECK (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_update_tables" ON public.tables;
 DROP POLICY IF EXISTS "admin_update_tables" ON public.tables;
 CREATE POLICY "admin_update_tables"
 ON public.tables FOR UPDATE
-TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+TO authenticated USING (public.is_authenticated_user()) WITH CHECK (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_delete_tables" ON public.tables;
 DROP POLICY IF EXISTS "admin_delete_tables" ON public.tables;
 CREATE POLICY "admin_delete_tables"
 ON public.tables FOR DELETE
-TO authenticated USING (public.is_admin());
+TO authenticated USING (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_insert_payment_methods" ON public.payment_methods;
 DROP POLICY IF EXISTS "admin_insert_payment_methods" ON public.payment_methods;
 CREATE POLICY "admin_insert_payment_methods"
 ON public.payment_methods FOR INSERT
-TO authenticated WITH CHECK (public.is_admin());
+TO authenticated WITH CHECK (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_update_payment_methods" ON public.payment_methods;
 DROP POLICY IF EXISTS "admin_update_payment_methods" ON public.payment_methods;
 CREATE POLICY "admin_update_payment_methods"
 ON public.payment_methods FOR UPDATE
-TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+TO authenticated USING (public.is_authenticated_user()) WITH CHECK (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_delete_payment_methods" ON public.payment_methods;
 DROP POLICY IF EXISTS "admin_delete_payment_methods" ON public.payment_methods;
 CREATE POLICY "admin_delete_payment_methods"
 ON public.payment_methods FOR DELETE
-TO authenticated USING (public.is_admin());
+TO authenticated USING (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "public_insert_tickets" ON public.tickets;
 DROP POLICY IF EXISTS "authenticated_insert_own_tickets" ON public.tickets;
@@ -95,19 +95,19 @@ DROP POLICY IF EXISTS "auth_update_tickets" ON public.tickets;
 DROP POLICY IF EXISTS "admin_update_tickets" ON public.tickets;
 CREATE POLICY "admin_update_tickets"
 ON public.tickets FOR UPDATE
-TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+TO authenticated USING (public.is_authenticated_user()) WITH CHECK (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_delete_tickets" ON public.tickets;
 DROP POLICY IF EXISTS "admin_delete_tickets" ON public.tickets;
 CREATE POLICY "admin_delete_tickets"
 ON public.tickets FOR DELETE
-TO authenticated USING (public.is_admin());
+TO authenticated USING (public.is_authenticated_user());
 
 DROP POLICY IF EXISTS "auth_delete_payment_proofs" ON storage.objects;
 DROP POLICY IF EXISTS "admin_delete_payment_proofs" ON storage.objects;
 CREATE POLICY "admin_delete_payment_proofs"
 ON storage.objects FOR DELETE
-TO authenticated USING (bucket_id = 'payment-proofs' AND public.is_admin());
+TO authenticated USING (bucket_id = 'payment-proofs' AND public.is_authenticated_user());
 
 CREATE OR REPLACE FUNCTION public.submit_ticket_request(
   p_full_name text,
@@ -177,8 +177,8 @@ DECLARE
   request_row public.ticket_requests%ROWTYPE;
   created_ticket public.tickets%ROWTYPE;
 BEGIN
-  IF NOT public.is_admin() THEN
-    RAISE EXCEPTION 'Administrator access is required';
+  IF NOT public.is_authenticated_user() THEN
+    RAISE EXCEPTION 'Authentication is required';
   END IF;
 
   IF p_decision NOT IN ('approved', 'rejected') THEN
@@ -255,8 +255,8 @@ DECLARE
   event_name text;
   ticket_token text;
 BEGIN
-  IF NOT public.is_admin() THEN
-    RAISE EXCEPTION 'Administrator access is required';
+  IF NOT public.is_authenticated_user() THEN
+    RAISE EXCEPTION 'Authentication is required';
   END IF;
 
   SELECT * INTO request_row
@@ -322,8 +322,8 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-  IF NOT public.is_admin() THEN
-    RAISE EXCEPTION 'Administrator access is required';
+  IF NOT public.is_authenticated_user() THEN
+    RAISE EXCEPTION 'Authentication is required';
   END IF;
 
   UPDATE public.ticket_requests

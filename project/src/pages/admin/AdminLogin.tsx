@@ -4,7 +4,7 @@ import { Lock, Mail, Loader2, ArrowLeft, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 export default function AdminLogin() {
-  const { signIn, signOut } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,13 +16,9 @@ export default function AdminLogin() {
     setError(null)
     setLoading(true)
 
-    const { error, isAdmin } = await signIn(email, password)
+    const { error } = await signIn(email, password)
     if (error) {
       setError(error)
-      setLoading(false)
-    } else if (!isAdmin) {
-      await signOut()
-      setError('Ce compte ne dispose pas des droits administrateur.')
       setLoading(false)
     } else {
       navigate('/admin')

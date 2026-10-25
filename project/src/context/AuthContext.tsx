@@ -4,13 +4,11 @@ import { supabase } from '../lib/supabase'
 
 interface AuthResult {
   error: string | null
-  isAdmin?: boolean
 }
 
 interface AuthContextType {
   session: Session | null
   user: User | null
-  isAdmin: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<AuthResult>
   signInWithPhone: (phone: string, password: string) => Promise<AuthResult>
@@ -55,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error: authErrorMessage(error.message) }
     setSession(data.session)
-    return { error: null, isAdmin: data.user.app_metadata?.role === 'admin' }
+    return { error: null }
   }
 
   const signInWithPhone = async (phone: string, password: string): Promise<AuthResult> => {
@@ -83,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       session,
       user: session?.user ?? null,
-      isAdmin: session?.user.app_metadata?.role === 'admin',
       loading,
       signIn,
       signInWithPhone,
