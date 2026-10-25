@@ -3,6 +3,7 @@ import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download, Mail } fr
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase, STORAGE_BUCKET, supabaseUrl } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
+import { useNavigate } from 'react-router-dom'
 
 type FilterStatus = 'all' | TicketStatus
 
@@ -167,9 +168,10 @@ export default function AdminTickets() {
     }
     return map[status]
   }
+ const Navigate = useNavigate();
 
   const openTicket = (token: string) => {
-    window.open(`/ticket/${token}`, 'noopener,noreferrer')
+    Navigate(`/ticket/${token}`);
   }
 
   const exportCSV = () => {
