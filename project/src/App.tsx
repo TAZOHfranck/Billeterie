@@ -17,9 +17,9 @@ import AdminSettings from './pages/admin/AdminSettings'
 import AdminScanner from './pages/admin/AdminScanner'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, isAdmin, loading } = useAuth()
+  const { session, loading } = useAuth()
   if (loading) return <LoadingScreen />
-  if (!session || !isAdmin) return <Navigate to="/admin/login" replace />
+  if (!session) return <Navigate to="/admin/login" replace />
   return <>{children}</>
 }
 
