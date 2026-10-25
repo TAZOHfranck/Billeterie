@@ -47,7 +47,7 @@ export async function identifyOneSignalUser(userId: string | null): Promise<void
 }
 
 export async function requestOneSignalPermission(userId: string): Promise<boolean> {
-  await identifyOneSignalUser(userId)
+  await initializeOneSignal()
   if (!OneSignal.Notifications.isPushSupported()) {
     throw new Error('Push notifications are not supported in this browser')
   }
@@ -58,5 +58,13 @@ export async function requestOneSignalPermission(userId: string): Promise<boolea
     throw new Error('OneSignal service worker is not active')
   }
 
-  return OneSignal.Notifications.requestPermission()
+  const permissionGranted = await OneSignal.Notifications.requestPermission()
+  if (!permissionGranted) return false
+
+  await OneSignal.login(userId)
+  if (OneSignal.User.externalId !== userId) {
+    throw new Error('OneSignal n’a pas associé cet appareil au compte connecté')
+  }
+
+  return true
 }

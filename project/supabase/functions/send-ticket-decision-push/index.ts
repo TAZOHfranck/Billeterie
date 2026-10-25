@@ -124,9 +124,20 @@ Deno.serve(async request => {
     }
 
     if (!providerResponse.ok || providerBody?.errors || !providerBody?.id) {
+      const errors = providerBody?.errors
+      const invalidExternalAlias = typeof errors === 'object' &&
+        errors !== null &&
+        'invalid_aliases' in errors &&
+        typeof errors.invalid_aliases === 'object' &&
+        errors.invalid_aliases !== null &&
+        'external_id' in errors.invalid_aliases
+      if (invalidExternalAlias) {
+        throw new Error('L’utilisateur n’a pas encore associé cet appareil à OneSignal. Il doit se connecter, activer les notifications push depuis « Mes réservations », puis vous pourrez réessayer.')
+      }
+
       throw new Error(
         providerBody?.message ||
-        (typeof providerBody?.errors === 'string' ? providerBody.errors : JSON.stringify(providerBody?.errors)) ||
+        (typeof errors === 'string' ? errors : JSON.stringify(errors)) ||
         responseText ||
         `OneSignal request failed (${providerResponse.status})`,
       )
