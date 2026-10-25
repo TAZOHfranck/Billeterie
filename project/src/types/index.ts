@@ -54,3 +54,29 @@ export interface TicketWithRelations extends Ticket {
   table?: TableSeat | null
   payment_method?: PaymentMethod | null
 }
+
+export type TicketRequestStatus = 'pending' | 'approved' | 'rejected'
+export type DecisionEmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | null
+
+export interface TicketRequest {
+  id: string
+  user_id: string
+  full_name: string
+  phone: string
+  email: string
+  table_id: string
+  payment_method_id: string
+  payment_proof_path: string
+  quantity: number
+  status: TicketRequestStatus
+  admin_notes: string
+  ticket_id: string | null
+  email_status: DecisionEmailStatus
+  email_error: string | null
+  created_at: string
+  updated_at: string
+  decided_at: string | null
+  table?: TableSeat | null
+  payment_method?: PaymentMethod | null
+  ticket?: { qr_token: string } | null
+}

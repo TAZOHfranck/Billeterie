@@ -1,13 +1,17 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download } from 'lucide-react'
 import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
-import { TicketWithRelations, TicketStatus } from '../../types'
+import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
 
 type FilterStatus = 'all' | TicketStatus
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
+  const [requests, setRequests] = useState<TicketRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [ticketError, setTicketError] = useState<string | null>(null)
+  const [requestsLoading, setRequestsLoading] = useState(true)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [selectedTicket, setSelectedTicket] = useState<TicketWithRelations | null>(null)
@@ -22,13 +26,37 @@ export default function AdminTickets() {
       .from('tickets')
       .select('*, table:tables(*), payment_method:payment_methods(*)')
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setTickets(data as TicketWithRelations[] || [])
+      .then(({ data, error }) => {
+        if (error) {
+          setTicketError(error.message)
+        } else {
+          setTickets(data as TicketWithRelations[] || [])
+          setTicketError(null)
+        }
         setLoading(false)
       })
   }, [])
 
-  useEffect(() => { loadTickets() }, [loadTickets])
+  const loadRequests = useCallback(async () => {
+    setRequestsLoading(true)
+    const { data, error } = await supabase
+      .from('ticket_requests')
+      .select('*, table:tables(*), payment_method:payment_methods(*), ticket:tickets(qr_token)')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      setRequestError(error.message)
+    } else {
+      setRequests((data || []) as TicketRequest[])
+      setRequestError(null)
+    }
+    setRequestsLoading(false)
+  }, [])
+
+  useEffect(() => {
+    loadTickets()
+    loadRequests()
+  }, [loadTickets, loadRequests])
 
   const loadProofUrl = async (path: string | null) => {
     if (!path) { setProofUrl(null); return }
@@ -47,10 +75,56 @@ export default function AdminTickets() {
       if (selectedTicket?.id === ticket.id) {
         setSelectedTicket({ ...ticket, status, admin_notes: notes ?? ticket.admin_notes })
       }
+    } else {
+      setTicketError(`Impossible de mettre à jour le billet : ${error.message}`)
     }
     setActionLoading(false)
     setShowRejectModal(false)
     setRejectNotes('')
+  }
+
+  const sendDecisionEmail = async (requestId: string) => {
+    setActionLoading(true)
+    setRequestError(null)
+    const { data, error } = await supabase.functions.invoke('send-ticket-decision-email', {
+      body: { request_id: requestId },
+    })
+    await loadRequests()
+    if (error) {
+      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${error.message}`)
+    } else if (data?.status === 'failed') {
+      setRequestError(`L’email n’a pas pu être envoyé : ${data.error || 'erreur OneSignal inconnue'}`)
+    } else if (data?.status === 'sending') {
+      setRequestError('L’envoi de l’email est déjà en cours. Réessayez dans quelques instants.')
+    }
+    setActionLoading(false)
+  }
+
+  const decideRequest = async (request: TicketRequest, decision: 'approved' | 'rejected') => {
+    setActionLoading(true)
+    setRequestError(null)
+    const { error } = await supabase.rpc('decide_ticket_request', {
+      p_request_id: request.id,
+      p_decision: decision,
+      p_admin_notes: '',
+    })
+
+    if (error) {
+      setRequestError(`La décision n’a pas été enregistrée : ${error.message}`)
+      setActionLoading(false)
+      return
+    }
+
+    const { data, error: emailError } = await supabase.functions.invoke('send-ticket-decision-email', {
+      body: { request_id: request.id },
+    })
+    await Promise.all([loadRequests(), loadTickets()])
+    if (emailError) {
+      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${emailError.message}`)
+    } else if (data?.status === 'failed') {
+      setRequestError(`La décision est enregistrée, mais l’email n’a pas pu être envoyé : ${data.error || 'erreur OneSignal inconnue'}`)
+    }
+    setActionLoading(false)
   }
 
   const filtered = tickets.filter(t => {
@@ -100,14 +174,104 @@ export default function AdminTickets() {
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Billets</h1>
-          <p className="text-gray-500 text-sm mt-1">Validez ou refusez les demandes de billets</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Demandes et billets</h1>
+          <p className="text-gray-500 text-sm mt-1">Un billet et son QR code sont créés uniquement après validation.</p>
         </div>
         <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 self-start">
           <Download className="w-4 h-4" />
           Exporter CSV
         </button>
       </div>
+
+      {requestError && <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{requestError}</div>}
+
+      <div className="card mb-6 overflow-hidden">
+        <div className="border-b border-gray-100 p-4 sm:p-5">
+          <h2 className="font-semibold text-gray-900">Demandes de réservation</h2>
+          <p className="mt-1 text-sm text-gray-500">Les demandes en attente ne possèdent pas encore de billet ni de QR code.</p>
+        </div>
+        {requestsLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary-600" /></div>
+        ) : requests.length === 0 ? (
+          <p className="p-6 text-center text-sm text-gray-500">Aucune demande enregistrée.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Client</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Réservation</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Statut</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {requests.map(request => {
+                  const proofUrl = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(request.payment_proof_path).data.publicUrl
+                  const qrToken = request.ticket?.qr_token
+                  const requestStatus = request.status === 'pending'
+                    ? { className: 'badge-pending', label: 'En attente' }
+                    : request.status === 'approved'
+                      ? { className: 'badge-approved', label: 'Validée' }
+                      : { className: 'badge-rejected', label: 'Refusée' }
+                  const emailStatus = request.email_status === 'sent'
+                    ? 'Email envoyé'
+                    : request.email_status === 'sending'
+                      ? 'Email en cours'
+                      : request.email_status === 'failed'
+                        ? 'Échec email'
+                        : request.email_status === 'pending'
+                          ? 'Email à envoyer'
+                          : null
+
+                  return (
+                    <tr key={request.id} className="align-top">
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-gray-900">{request.full_name}</p>
+                        <p className="text-sm text-gray-500">{request.phone}</p>
+                        <p className="text-sm text-gray-500">{request.email}</p>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-700">
+                        <p>{request.table?.name || 'Table indisponible'} · {request.quantity} place(s)</p>
+                        <p className="text-xs text-gray-500">{request.payment_method?.name || 'Paiement indisponible'}</p>
+                        <a href={proofUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-primary-600 hover:underline">Voir la preuve</a>
+                        {request.admin_notes && <p className="mt-2 text-xs text-amber-700">{request.admin_notes}</p>}
+                        {qrToken && <button onClick={() => openTicket(qrToken)} className="mt-2 block text-xs text-primary-600 hover:underline">Ouvrir le billet émis</button>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`badge ${requestStatus.className}`}>{requestStatus.label}</span>
+                        {emailStatus && <p className={`mt-2 text-xs ${request.email_status === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>{emailStatus}</p>}
+                        {request.email_error && <p className="mt-1 max-w-56 text-xs text-red-600">{request.email_error}</p>}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {request.status === 'pending' && (
+                            <>
+                              <button onClick={() => decideRequest(request, 'approved')} className="btn-success inline-flex items-center gap-1 px-3 py-2 text-xs" disabled={actionLoading}>
+                                <CheckCircle className="h-4 w-4" /> Valider
+                              </button>
+                              <button onClick={() => decideRequest(request, 'rejected')} className="btn-danger inline-flex items-center gap-1 px-3 py-2 text-xs" disabled={actionLoading}>
+                                <XCircle className="h-4 w-4" /> Refuser
+                              </button>
+                            </>
+                          )}
+                          {request.status !== 'pending' && request.email_status !== 'sent' && (
+                            <button onClick={() => sendDecisionEmail(request.id)} className="btn-secondary px-3 py-2 text-xs" disabled={actionLoading}>
+                              Renvoyer l’email
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {ticketError && <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{ticketError}</div>}
 
       {/* Filters */}
       <div className="card p-4 mb-6">

@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoadingScreen } from './components/LoadingScreen'
+import { initializeOneSignal } from './lib/oneSignal'
 import LandingPage from './pages/public/LandingPage'
 import TicketFormPage from './pages/public/TicketFormPage'
 import TicketStatusPage from './pages/public/TicketStatusPage'
@@ -15,13 +17,19 @@ import AdminSettings from './pages/admin/AdminSettings'
 import AdminScanner from './pages/admin/AdminScanner'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, isAdmin, loading } = useAuth()
   if (loading) return <LoadingScreen />
-  if (!session) return <Navigate to="/admin/login" replace />
+  if (!session || !isAdmin) return <Navigate to="/admin/login" replace />
   return <>{children}</>
 }
 
 export default function App() {
+  useEffect(() => {
+    initializeOneSignal().catch((error: unknown) => {
+      console.error('OneSignal initialization failed:', error)
+    })
+  }, [])
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />

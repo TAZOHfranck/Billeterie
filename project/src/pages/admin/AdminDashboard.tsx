@@ -26,14 +26,23 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [recentTickets, setRecentTickets] = useState<RecentTicket[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
       supabase.from('tickets').select('*, table:tables(name, price)'),
       supabase.from('tables').select('*'),
-    ]).then(([ticketsRes, tablesRes]) => {
+      supabase.from('ticket_requests').select('id').eq('status', 'pending'),
+    ]).then(([ticketsRes, tablesRes, requestsRes]) => {
+      if (ticketsRes.error || tablesRes.error || requestsRes.error) {
+        setError(ticketsRes.error?.message || tablesRes.error?.message || requestsRes.error?.message || 'Impossible de charger le tableau de bord.')
+        setLoading(false)
+        return
+      }
+
       const tickets = ticketsRes.data || []
       const tables = tablesRes.data || []
+      const pendingRequests = requestsRes.data || []
 
       const totalRevenue = tickets
         .filter(t => t.status === 'approved' || t.status === 'used')
@@ -45,7 +54,7 @@ export default function AdminDashboard() {
 
       setStats({
         total: tickets.length,
-        pending: tickets.filter(t => t.status === 'pending').length,
+        pending: pendingRequests.length,
         approved: tickets.filter(t => t.status === 'approved').length,
         rejected: tickets.filter(t => t.status === 'rejected').length,
         used: tickets.filter(t => t.status === 'used').length,
@@ -80,6 +89,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
+      {error && <div className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       <div className="mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Tableau de bord</h1>
         <p className="text-gray-500 text-sm mt-1">Vue d'ensemble de votre événement</p>

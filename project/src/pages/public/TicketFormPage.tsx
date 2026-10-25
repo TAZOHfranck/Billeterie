@@ -24,6 +24,7 @@ export default function TicketFormPage() {
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
+    email: '',
     table_id: '',
     payment_method_id: '',
     quantity: 1,
@@ -83,6 +84,10 @@ export default function TicketFormPage() {
       setError('Veuillez remplir tous les champs obligatoires')
       return
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      setError('Veuillez saisir une adresse email valide')
+      return
+    }
     if (!formData.table_id) {
       setError('Veuillez choisir une table')
       return
@@ -109,24 +114,19 @@ export default function TicketFormPage() {
 
       if (uploadError) throw uploadError
 
-      const { data: ticketData, error: insertError } = await supabase
-        .from('tickets')
-        .insert({
-          full_name: formData.full_name.trim(),
-          phone: formData.phone.trim(),
-          table_id: formData.table_id,
-          payment_method_id: formData.payment_method_id,
-          payment_proof_path: filePath,
-          quantity: formData.quantity,
-          status: 'pending',
-        })
-        .select('qr_token')
-        .single()
+      const { error: insertError } = await supabase.rpc('submit_ticket_request', {
+        p_full_name: formData.full_name.trim(),
+        p_phone: formData.phone.trim(),
+        p_email: formData.email.trim(),
+        p_table_id: formData.table_id,
+        p_payment_method_id: formData.payment_method_id,
+        p_payment_proof_path: filePath,
+        p_quantity: formData.quantity,
+      })
 
       if (insertError) throw insertError
 
-      localStorage.setItem('glamour_ticket_token', ticketData.qr_token)
-      navigate(`/ticket/${ticketData.qr_token}`)
+      navigate('/my-tickets')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la soumission')
     } finally {
@@ -233,6 +233,22 @@ export default function TicketFormPage() {
                 placeholder="+225 07 00 00 00 00"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Adresse email <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                autoComplete="email"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                className="input-field"
+                placeholder="vous@exemple.com"
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">Nous vous enverrons la décision de l’administration à cette adresse.</p>
             </div>
 
             <div>
@@ -358,6 +374,10 @@ export default function TicketFormPage() {
               <input type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
             </label>
           </div>
+
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Votre demande reste en attente jusqu’à sa validation par l’administration. Aucun billet ni QR code n’est créé avant son approbation.
+          </p>
 
           <button
             type="submit"

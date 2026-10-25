@@ -21,7 +21,7 @@ body { margin: 0; min-height: 100vh; background: #031b3b; }
   .btn-secondary { @apply bg-white hover:bg-gray-50 text-gray-700 font-medium px-6 py-3 rounded-lg border border-gray-300 transition-colors duration-200 disabled:opacity-50; }
   .btn-danger { @apply bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200; }
   .btn-success { @apply bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200; }
-  .input-field { @apply w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all outline-none; }
+  .input-field { @apply w-full bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 rounded-lg border border-gray-300 focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all outline-none; }
   .card { @apply bg-white rounded-2xl shadow-sm border border-gray-100; }
   .badge { @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium; }
   .badge-pending { @apply bg-amber-100 text-amber-800; }
