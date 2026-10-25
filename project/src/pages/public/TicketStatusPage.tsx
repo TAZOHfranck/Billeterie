@@ -12,10 +12,16 @@ export default function TicketStatusPage() {
   const [loading, setLoading] = useState(true)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     if (!token) return
     let active = true
+    setLoading(true)
+    setTicket(null)
+    setQrUrl(null)
+    setNotFound(false)
+    setLoadError(false)
 
     const loadTicket = async (firstLoad: boolean) => {
       const [ticketRes, settingsRes] = await Promise.all([
@@ -23,8 +29,16 @@ export default function TicketStatusPage() {
         firstLoad ? supabase.from('event_settings').select('*').limit(1).maybeSingle() : Promise.resolve({ data: null }),
       ])
       if (!active) return
+      if (ticketRes.error) {
+        setLoadError(true)
+        setNotFound(false)
+        setLoading(false)
+        return
+      }
       if (!ticketRes.data) { setNotFound(true); setLoading(false); return }
       const nextTicket = ticketRes.data as TicketWithRelations
+      setLoadError(false)
+      setNotFound(false)
       setTicket(nextTicket)
       localStorage.setItem('glamour_ticket_cache', JSON.stringify(nextTicket))
       if (settingsRes.data) setSettings(settingsRes.data as EventSettings)
@@ -39,6 +53,7 @@ export default function TicketStatusPage() {
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#100806]"><Loader2 className="h-8 w-8 animate-spin text-accent-300" /></div>
   if (notFound) return <div className="flex min-h-screen items-center justify-center bg-[#100806] px-6"><div className="text-center"><XCircle className="mx-auto h-16 w-16 text-red-400" /><h1 className="mt-4 text-2xl font-bold text-white">Billet introuvable</h1><p className="mt-2 text-gray-300">Ce QR code ne correspond à aucun billet.</p><Link to="/" className="btn-primary mt-6 inline-flex">Retour à l'accueil</Link></div></div>
+  if (loadError && !ticket) return <div className="flex min-h-screen items-center justify-center bg-[#100806] px-6"><div className="text-center"><XCircle className="mx-auto h-16 w-16 text-amber-300" /><h1 className="mt-4 text-2xl font-bold text-white">Billet temporairement inaccessible</h1><p className="mt-2 text-gray-300">Impossible de charger ce billet. Vérifiez votre connexion puis réessayez.</p><button onClick={() => window.location.reload()} className="btn-primary mt-6">Réessayer</button></div></div>
   if (!ticket) return null
 
   const statusConfig = {
