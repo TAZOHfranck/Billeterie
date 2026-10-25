@@ -1,15 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/reserve", "destination": "/index.html" },
-    { "source": "/ticket/:token", "destination": "/index.html" },
-    { "source": "/my-tickets", "destination": "/index.html" },
-    { "source": "/admin/login", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" },
-    { "source": "/admin/tickets", "destination": "/index.html" },
-    { "source": "/admin/tables", "destination": "/index.html" },
-    { "source": "/admin/payments", "destination": "/index.html" },
-    { "source": "/admin/settings", "destination": "/index.html" },
-    { "source": "/admin/scanner", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
