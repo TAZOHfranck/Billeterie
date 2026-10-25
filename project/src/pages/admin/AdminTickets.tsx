@@ -1,9 +1,30 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download } from 'lucide-react'
-import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
+import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download, Mail } from 'lucide-react'
+import { FunctionsHttpError } from '@supabase/supabase-js'
+import { supabase, STORAGE_BUCKET, supabaseUrl } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
 
 type FilterStatus = 'all' | TicketStatus
+
+async function getFunctionErrorMessage(error: unknown) {
+  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
+    try {
+      const body: unknown = await error.context.json()
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'error' in body &&
+        typeof body.error === 'string'
+      ) {
+        return body.error
+      }
+    } catch {
+      return error.message
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Erreur inconnue'
+}
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
@@ -91,7 +112,8 @@ export default function AdminTickets() {
     })
     await loadRequests()
     if (error) {
-      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${error.message}`)
+      const message = await getFunctionErrorMessage(error)
+      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${message}`)
     } else if (data?.status === 'failed') {
       setRequestError(`La notification push n’a pas pu être envoyée : ${data.error || 'erreur OneSignal inconnue'}`)
     } else if (data?.status === 'sending') {
@@ -120,7 +142,8 @@ export default function AdminTickets() {
     })
     await Promise.all([loadRequests(), loadTickets()])
     if (pushError) {
-      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${pushError.message}`)
+      const message = await getFunctionErrorMessage(pushError)
+      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${message}`)
     } else if (data?.status === 'failed') {
       setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${data.error || 'erreur OneSignal inconnue'}`)
     }
@@ -209,6 +232,34 @@ export default function AdminTickets() {
                 {requests.map(request => {
                   const proofUrl = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(request.payment_proof_path).data.publicUrl
                   const qrToken = request.ticket?.qr_token
+                  const decisionEmail = request.status !== 'pending'
+                    ? (() => {
+                        const approved = request.status === 'approved'
+                        const subject = approved
+                          ? 'Votre demande de billet a été validée'
+                          : 'Votre demande de billet a été refusée'
+                        const ticketUrl = qrToken
+                          ? `${window.location.origin}/ticket/${encodeURIComponent(qrToken)}`
+                          : null
+                        const pdfUrl = qrToken
+                          ? `${supabaseUrl}/functions/v1/download-ticket-pdf?token=${encodeURIComponent(qrToken)}`
+                          : null
+                        const body = [
+                          `Bonjour ${request.full_name},`,
+                          '',
+                          approved
+                            ? 'Votre demande de billet a été validée par l’administration.'
+                            : 'Votre demande de billet a été refusée par l’administration.',
+                          request.admin_notes ? `Motif : ${request.admin_notes}` : '',
+                          approved && ticketUrl ? `Consulter votre billet : ${ticketUrl}` : '',
+                          approved && pdfUrl ? `Télécharger le billet PDF : ${pdfUrl}` : '',
+                          '',
+                          'Cordialement,',
+                          'L’équipe de l’événement',
+                        ].filter(Boolean).join('\n')
+                        return `mailto:${encodeURIComponent(request.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+                      })()
+                    : null
                   const requestStatus = request.status === 'pending'
                     ? { className: 'badge-pending', label: 'En attente' }
                     : request.status === 'approved'
@@ -259,6 +310,11 @@ export default function AdminTickets() {
                             <button onClick={() => sendDecisionPush(request.id)} className="btn-secondary px-3 py-2 text-xs" disabled={actionLoading}>
                               Renvoyer la notification push
                             </button>
+                          )}
+                          {decisionEmail && (
+                            <a href={decisionEmail} className="btn-secondary inline-flex items-center gap-1 px-3 py-2 text-xs">
+                              <Mail className="h-3.5 w-3.5" /> Préparer l’email
+                            </a>
                           )}
                         </div>
                       </td>

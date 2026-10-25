@@ -48,7 +48,15 @@ Deno.serve(async request => {
     'claim_ticket_decision_push',
     { p_request_id: requestId },
   )
-  if (claimError) return jsonResponse({ error: claimError.message }, 403)
+  if (claimError) {
+    console.error('Could not claim ticket decision push:', claimError)
+    const isAdminAccessError = claimError.message.includes('Administrator access is required')
+    const isMissingRpc = claimError.code === 'PGRST202' || claimError.code === '42883'
+    const message = isMissingRpc
+      ? 'La migration de notification push n’est pas appliquée. Exécutez supabase db push, puis redéployez cette fonction.'
+      : claimError.message
+    return jsonResponse({ error: message, code: claimError.code }, isAdminAccessError ? 403 : 500)
+  }
   if (!notification || typeof notification.status !== 'string') {
     return jsonResponse({ error: 'OneSignal push notification could not be loaded' }, 500)
   }
