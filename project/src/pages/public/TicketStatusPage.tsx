@@ -77,7 +77,7 @@ export default function TicketStatusPage() {
       </div>
 
       <article className="ticket-sheet mx-auto max-w-[760px] overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <header className="relative bg-[radial-gradient(ellipse_at_top,#4a1b0f,#170806_58%,#080504)] px-6 py-8 text-center text-white sm:px-12">
+        <header className="ticket-header relative bg-[radial-gradient(ellipse_at_top,#4a1b0f,#170806_58%,#080504)] px-6 py-8 text-center text-white sm:px-12">
           <div className="absolute left-0 right-0 top-0 h-1.5 bg-accent-400" />
           <p className="text-[10px] font-semibold tracking-[0.35em] text-accent-200 sm:text-xs">IPD-YAOUNDÉ PRÉSENTE</p>
           <p className="display-font mt-3 text-5xl font-bold leading-none sm:text-6xl">Soirée Chic</p>
@@ -85,34 +85,34 @@ export default function TicketStatusPage() {
           <div className="mx-auto mt-5 flex max-w-xs items-center gap-3"><span className="h-px flex-1 bg-accent-400" /><span className="text-xs font-bold tracking-[0.22em] text-accent-200">2ÈME ÉDITION</span><span className="h-px flex-1 bg-accent-400" /></div>
         </header>
 
-        <div className={`${status.bg} ${status.border} flex items-center justify-center gap-2 border-b px-5 py-3`}><StatusIcon className={`h-5 w-5 ${status.color}`} /><span className={`text-sm font-bold ${status.color}`}>{status.label}</span></div>
+        <div className={`ticket-status ${status.bg} ${status.border} flex items-center justify-center gap-2 border-b px-5 py-3`}><StatusIcon className={`h-5 w-5 ${status.color}`} /><span className={`text-sm font-bold ${status.color}`}>{status.label}</span></div>
 
-        <div className="grid gap-8 p-6 sm:grid-cols-[1fr_240px] sm:p-10">
+        <div className="ticket-content grid gap-8 p-6 sm:grid-cols-[1fr_240px] sm:p-10">
           <section>
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-accent-600">Billet officiel</p>
-            <h1 className="mt-2 text-3xl font-bold uppercase tracking-wide text-[#160806]">{ticket.full_name}</h1>
+            <h1 className="ticket-buyer-name mt-2 text-3xl font-bold uppercase tracking-wide text-[#160806]">{ticket.full_name}</h1>
             <p className="mt-1 flex items-center gap-1 text-sm text-gray-500"><Phone className="h-3 w-3" /> {ticket.phone}</p>
 
-            <div className="mt-8 grid grid-cols-1 gap-5 min-[420px]:grid-cols-2">
+            <div className="ticket-details mt-8 grid grid-cols-1 gap-5 min-[420px]:grid-cols-2">
               <div><p className="ticket-label"><Calendar className="h-3.5 w-3.5" /> Date</p><p className="ticket-value">{eventDate.toLocaleDateString('fr-FR')}</p><p className="text-xs text-gray-500">À partir de 18h</p></div>
               <div><p className="ticket-label"><MapPin className="h-3.5 w-3.5" /> Lieu</p><p className="ticket-value">{eventLocation}</p></div>
               <div><p className="ticket-label"><Table2 className="h-3.5 w-3.5" /> Table</p><p className="ticket-value">{ticket.table?.name || 'N/A'}</p></div>
               <div><p className="ticket-label"><CreditCard className="h-3.5 w-3.5" /> Places</p><p className="ticket-value">{ticket.quantity}</p></div>
             </div>
 
-            <div className="mt-8 border-y border-dashed border-accent-400 py-5"><p className="display-font text-3xl italic text-accent-600">Tenue élégante exigée</p><p className="mt-1 text-[10px] font-semibold tracking-[0.32em] text-[#031b3b]">ÉLÉGANCE · TALENT · GLAMOUR</p></div>
-            <div className="mt-6 flex items-center gap-2 text-xs text-gray-500"><ShieldCheck className="h-4 w-4 text-green-600" /> Billet nominatif, valable pour une seule entrée.</div>
+            <div className="ticket-motto mt-8 border-y border-dashed border-accent-400 py-5"><p className="display-font text-3xl italic text-accent-600">Tenue élégante exigée</p><p className="mt-1 text-[10px] font-semibold tracking-[0.32em] text-[#031b3b]">ÉLÉGANCE · TALENT · GLAMOUR</p></div>
+            <div className="ticket-note mt-6 flex items-center gap-2 text-xs text-gray-500"><ShieldCheck className="h-4 w-4 text-green-600" /> Billet nominatif, valable pour une seule entrée.</div>
           </section>
 
-          <aside className="flex flex-col items-center justify-center border-t border-gray-200 pt-6 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0">
-            <div className="rounded-xl border-4 border-[#031b3b] p-3"><img src={qrUrl || ''} alt="QR code du billet" className="h-48 w-48" /></div>
+          <aside className="ticket-qr flex flex-col items-center justify-center border-t border-gray-200 pt-6 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0">
+            <div className="ticket-qr-frame rounded-xl border-4 border-[#031b3b] p-3"><img src={qrUrl || ''} alt="QR code du billet" className="h-48 w-48" /></div>
             <p className="mt-3 text-center text-[10px] font-semibold uppercase tracking-widest text-gray-500">À présenter à l'entrée</p>
             <p className="mt-2 break-all text-center font-mono text-[9px] text-gray-400">{ticket.qr_token}</p>
             <div className="mt-6 rounded-lg bg-[#f7eee0] px-5 py-3 text-center"><p className="text-[10px] uppercase text-gray-500">Montant</p><p className="text-2xl font-bold text-[#160806]">{total.toLocaleString()} F</p></div>
           </aside>
         </div>
 
-        <footer className="flex flex-col items-start justify-between gap-4 border-t-2 border-dashed border-accent-400 bg-[#f7eee0] px-6 py-5 sm:flex-row sm:items-center sm:px-10"><div><p className="text-xs font-bold uppercase tracking-widest text-[#160806]">{eventName}</p><p className="mt-1 text-xs text-gray-500">Conservez ce billet jusqu'à l'entrée.</p></div><Scissors className="no-print h-5 w-5 rotate-90 text-accent-600" /></footer>
+        <footer className="ticket-footer flex flex-col items-start justify-between gap-4 border-t-2 border-dashed border-accent-400 bg-[#f7eee0] px-6 py-5 sm:flex-row sm:items-center sm:px-10"><div><p className="text-xs font-bold uppercase tracking-widest text-[#160806]">{eventName}</p><p className="mt-1 text-xs text-gray-500">Conservez ce billet jusqu'à l'entrée.</p></div><Scissors className="no-print h-5 w-5 rotate-90 text-accent-600" /></footer>
       </article>
 
       <div className="no-print mx-auto mt-5 flex max-w-[760px] flex-col justify-center gap-3 sm:flex-row"><button onClick={() => window.print()} className="btn-primary inline-flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Imprimer / enregistrer en PDF</button>{ticket.status === 'approved' || ticket.status === 'used' ? <a href={`${supabaseUrl}/functions/v1/download-ticket-pdf?token=${encodeURIComponent(ticket.qr_token)}`} className="btn-secondary inline-flex items-center justify-center gap-2"><Download className="h-4 w-4" /> Télécharger le billet PDF</a> : null}</div>

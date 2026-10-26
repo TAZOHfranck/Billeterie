@@ -15,40 +15,59 @@ async function createTicketPdf(ticket: {
   event_location: string
 }) {
   const document = await PDFDocument.create()
-  const page = document.addPage([595, 842])
+  const page = document.addPage([419.53, 595.28])
   const font = await document.embedFont(StandardFonts.Helvetica)
   const boldFont = await document.embedFont(StandardFonts.HelveticaBold)
   const qrPng = await QRCode.toBuffer(ticket.qr_token, { type: 'png', width: 360, margin: 1 })
   const qrImage = await document.embedPng(qrPng)
   const date = event.event_date ? new Date(event.event_date).toLocaleDateString('fr-FR') : 'À préciser'
   const total = (ticket.table_price * ticket.quantity).toLocaleString('fr-FR')
-
-  page.drawRectangle({ x: 28, y: 28, width: 539, height: 786, color: rgb(1, 0.992, 0.969), borderColor: rgb(0.72, 0.47, 0.12), borderWidth: 2 })
-  page.drawRectangle({ x: 28, y: 770, width: 539, height: 44, color: rgb(0.18, 0.07, 0.04) })
-  page.drawText(event.event_name, { x: 52, y: 785, size: 18, font: boldFont, color: rgb(1, 0.82, 0.45), maxWidth: 490 })
-  page.drawText('BILLET OFFICIEL', { x: 52, y: 724, size: 13, font: boldFont, color: rgb(0.55, 0.34, 0.08) })
-
-  const details = [
-    ['Nom', ticket.full_name],
-    ['Téléphone', ticket.phone],
-    ['Date', date],
-    ['Lieu', event.event_location || 'À préciser'],
-    ['Table', ticket.table_name || 'N/A'],
-    ['Nombre de places', String(ticket.quantity)],
-    ['Montant', `${total} F`],
-  ]
-
-  let y = 678
-  for (const [label, value] of details) {
-    page.drawText(`${label} :`, { x: 52, y, size: 11, font: boldFont, color: rgb(0.18, 0.07, 0.04) })
-    page.drawText(value, { x: 190, y, size: 11, font, color: rgb(0.18, 0.07, 0.04), maxWidth: 350 })
-    y -= 34
+  const ink = rgb(0.09, 0.03, 0.02)
+  const gold = rgb(0.72, 0.47, 0.12)
+  const muted = rgb(0.35, 0.35, 0.35)
+  const cream = rgb(1, 0.992, 0.969)
+  const fitTextSize = (text: string, textFont: typeof font, maxWidth: number, maxSize: number, minSize: number) => {
+    const textWidth = textFont.widthOfTextAtSize(text, maxSize)
+    if (textWidth <= maxWidth || textWidth === 0) return maxSize
+    return Math.max(minSize, maxSize * maxWidth / textWidth)
   }
 
-  page.drawImage(qrImage, { x: 197, y: 260, width: 200, height: 200 })
-  page.drawText('Présentez ce QR code à l’entrée', { x: 165, y: 238, size: 11, font: boldFont, color: rgb(0.18, 0.07, 0.04) })
-  page.drawText(`Code billet : ${ticket.qr_token}`, { x: 52, y: 190, size: 9, font, color: rgb(0.35, 0.35, 0.35), maxWidth: 490 })
-  page.drawText('Billet nominatif, valable pour une seule entrée.', { x: 52, y: 82, size: 10, font, color: rgb(0.35, 0.35, 0.35) })
+  page.drawRectangle({ x: 18, y: 18, width: 383.53, height: 559.28, color: cream, borderColor: gold, borderWidth: 2 })
+  page.drawRectangle({ x: 18, y: 480, width: 383.53, height: 97.28, color: ink })
+  page.drawRectangle({ x: 18, y: 573, width: 383.53, height: 4.28, color: gold })
+  page.drawText('IPD-YAOUNDÉ PRÉSENTE', { x: 38, y: 552, size: 8, font: boldFont, color: rgb(1, 0.82, 0.45) })
+  page.drawText(event.event_name, { x: 38, y: 521, size: fitTextSize(event.event_name, boldFont, 343, 20, 11), font: boldFont, color: rgb(1, 1, 1) })
+  page.drawText('BILLET OFFICIEL', { x: 38, y: 495, size: 10, font: boldFont, color: rgb(1, 0.82, 0.45) })
+  page.drawRectangle({ x: 38, y: 447, width: 343, height: 23, color: rgb(0.91, 0.97, 0.92) })
+  page.drawText('BILLET VALIDÉ', { x: 155, y: 454, size: 10, font: boldFont, color: rgb(0.12, 0.42, 0.24) })
+
+  page.drawText('NOM DU PARTICIPANT', { x: 38, y: 425, size: 7, font: boldFont, color: gold })
+  page.drawText(ticket.full_name, { x: 38, y: 402, size: fitTextSize(ticket.full_name, boldFont, 343, 16, 8), font: boldFont, color: ink })
+  page.drawText(`Téléphone : ${ticket.phone}`, { x: 38, y: 383, size: 9, font, color: muted, maxWidth: 343 })
+
+  page.drawRectangle({ x: 38, y: 367, width: 164, height: 1, color: rgb(0.88, 0.84, 0.78) })
+  page.drawRectangle({ x: 217, y: 367, width: 164, height: 1, color: rgb(0.88, 0.84, 0.78) })
+  page.drawText('DATE', { x: 38, y: 351, size: 7, font: boldFont, color: muted })
+  page.drawText(date, { x: 38, y: 335, size: 10, font: boldFont, color: ink })
+  page.drawText('LIEU', { x: 217, y: 351, size: 7, font: boldFont, color: muted })
+  const location = event.event_location || 'À préciser'
+  page.drawText(location, { x: 217, y: 335, size: fitTextSize(location, boldFont, 164, 9, 6), font: boldFont, color: ink })
+  page.drawText('TABLE', { x: 38, y: 308, size: 7, font: boldFont, color: muted })
+  const tableName = ticket.table_name || 'N/A'
+  page.drawText(tableName, { x: 38, y: 292, size: fitTextSize(tableName, boldFont, 164, 10, 6), font: boldFont, color: ink })
+  page.drawText('NOMBRE DE PLACES', { x: 217, y: 308, size: 7, font: boldFont, color: muted })
+  page.drawText(String(ticket.quantity), { x: 217, y: 292, size: 10, font: boldFont, color: ink })
+
+  page.drawRectangle({ x: 145, y: 251, width: 130, height: 30, color: rgb(0.97, 0.93, 0.88) })
+  page.drawText('MONTANT', { x: 180, y: 269, size: 7, font: boldFont, color: muted })
+  page.drawText(`${total} F`, { x: 178, y: 255, size: 12, font: boldFont, color: ink })
+
+  page.drawImage(qrImage, { x: 153, y: 113, width: 114, height: 114 })
+  page.drawText('Présentez ce QR code à l’entrée', { x: 133, y: 99, size: 9, font: boldFont, color: ink })
+  page.drawText(`Code billet : ${ticket.qr_token}`, { x: 38, y: 82, size: 7, font, color: muted, maxWidth: 343 })
+  page.drawRectangle({ x: 18, y: 18, width: 383.53, height: 43, color: rgb(0.97, 0.93, 0.88) })
+  page.drawText('TENUE ÉLÉGANTE EXIGÉE', { x: 38, y: 43, size: 9, font: boldFont, color: gold })
+  page.drawText('Billet nominatif, valable pour une seule entrée.', { x: 38, y: 28, size: 8, font, color: muted })
 
   return document.save()
 }
