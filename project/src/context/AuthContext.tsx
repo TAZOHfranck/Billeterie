@@ -33,6 +33,9 @@ function authErrorMessage(message: string, status?: number) {
   if (status === 429 || normalizedMessage.includes('too many requests') || normalizedMessage.includes('rate limit')) {
     return 'Trop de tentatives d’inscription ou de connexion. Attendez quelques minutes avant de réessayer. Cette limite est appliquée par Supabase.'
   }
+  if (status !== undefined && status >= 500) {
+    return `Erreur du service d’authentification (${status}) : ${message}`
+  }
   if (normalizedMessage.includes('invalid login credentials')) return 'Adresse email ou mot de passe incorrect.'
   if (normalizedMessage.includes('already registered')) return 'Cette adresse email possède déjà un compte. Connectez-vous.'
   if (normalizedMessage.includes('password')) return 'Le mot de passe doit contenir au moins 6 caractères.'
