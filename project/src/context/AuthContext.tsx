@@ -39,7 +39,8 @@ function authErrorMessage(message: string, status?: number) {
   if (normalizedMessage.includes('invalid login credentials')) return 'Adresse email ou mot de passe incorrect.'
   if (normalizedMessage.includes('already registered')) return 'Cette adresse email possède déjà un compte. Connectez-vous.'
   if (normalizedMessage.includes('password')) return 'Le mot de passe doit contenir au moins 6 caractères.'
-  return 'Impossible de traiter la demande pour le moment.'
+  if (status !== undefined) return `Erreur d’authentification (${status}) : ${message}`
+  return `Erreur d’authentification : ${message}`
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
