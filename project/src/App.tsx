@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoadingScreen } from './components/LoadingScreen'
 import { initializeOneSignal } from './lib/oneSignal'
-import NotFoundPage from './pages/NotFoundPage'
 import LandingPage from './pages/public/LandingPage'
 import TicketFormPage from './pages/public/TicketFormPage'
 import TicketStatusPage from './pages/public/TicketStatusPage'
@@ -48,7 +47,7 @@ export default function App() {
         <Route path="settings" element={<AdminSettings />} />
         <Route path="scanner" element={<AdminScanner />} />
       </Route>
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#100806" />
-    <title>Page introuvable — Billetterie</title>
+    <title>Retour à l’accueil — Billetterie</title>
     <style>
       :root {
         color-scheme: dark;
@@ -31,7 +31,7 @@
         line-height: 1.6;
       }
 
-      .code {
+      .brand {
         color: #fcd34d;
         font-size: 0.875rem;
         font-weight: 700;
@@ -57,10 +57,13 @@
   </head>
   <body>
     <main>
-      <p class="code">Erreur 404</p>
-      <h1>Page introuvable</h1>
-      <p>La page que vous recherchez n’existe pas ou n’est plus disponible.</p>
+      <p class="brand">Billetterie</p>
+      <h1>Cette page n’est plus disponible</h1>
+      <p>Vous allez être redirigé vers l’accueil. Si la redirection ne démarre pas, utilisez le bouton ci-dessous.</p>
       <a href="/">Retour à l’accueil</a>
     </main>
+    <script>
+      window.setTimeout(() => window.location.replace('/'), 5000)
+    </script>
   </body>
 </html>
