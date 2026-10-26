@@ -1,31 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download, Mail } from 'lucide-react'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase, STORAGE_BUCKET, supabaseUrl } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
 import { useNavigate } from 'react-router-dom'
 
 type FilterStatus = 'all' | TicketStatus
-
-async function getFunctionErrorMessage(error: unknown) {
-  if (error instanceof FunctionsHttpError && error.context instanceof Response) {
-    try {
-      const body: unknown = await error.context.json()
-      if (
-        typeof body === 'object' &&
-        body !== null &&
-        'error' in body &&
-        typeof body.error === 'string'
-      ) {
-        return body.error
-      }
-    } catch {
-      return error.message
-    }
-  }
-
-  return error instanceof Error ? error.message : 'Erreur inconnue'
-}
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
@@ -113,10 +92,9 @@ export default function AdminTickets() {
     })
     await loadRequests()
     if (error) {
-      const message = await getFunctionErrorMessage(error)
-      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${message}`)
+      setRequestError('Échec d’envoi')
     } else if (data?.status === 'failed') {
-      setRequestError(`La notification push n’a pas pu être envoyée : ${data.error || 'erreur OneSignal inconnue'}`)
+      setRequestError('Échec d’envoi')
     } else if (data?.status === 'sending') {
       setRequestError('La notification push est déjà en cours d’envoi. Réessayez dans quelques instants.')
     }
@@ -143,10 +121,9 @@ export default function AdminTickets() {
     })
     await Promise.all([loadRequests(), loadTickets()])
     if (pushError) {
-      const message = await getFunctionErrorMessage(pushError)
-      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${message}`)
+      setRequestError('Échec d’envoi')
     } else if (data?.status === 'failed') {
-      setRequestError(`La décision est enregistrée, mais la notification push n’a pas pu être envoyée : ${data.error || 'erreur OneSignal inconnue'}`)
+      setRequestError('Échec d’envoi')
     }
     setActionLoading(false)
   }
@@ -272,7 +249,7 @@ export default function AdminTickets() {
                     : request.push_status === 'sending'
                       ? 'Notification push en cours'
                       : request.push_status === 'failed'
-                        ? 'Échec de la notification push'
+                          ? 'Échec d’envoi'
                         : request.push_status === 'pending' && request.status !== 'pending'
                           ? 'Notification push à envoyer'
                           : null
@@ -294,7 +271,6 @@ export default function AdminTickets() {
                       <td className="px-4 py-4">
                         <span className={`badge ${requestStatus.className}`}>{requestStatus.label}</span>
                         {pushStatus && <p className={`mt-2 text-xs ${request.push_status === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>{pushStatus}</p>}
-                        {request.push_error && <p className="mt-1 max-w-56 text-xs text-red-600">{request.push_error}</p>}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap justify-end gap-2">
