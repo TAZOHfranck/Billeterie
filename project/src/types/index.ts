@@ -68,6 +68,7 @@ export interface TicketPaymentTranche {
   id: string
   request_id: string
   amount: number
+  receipt_token: string
   payment_proof_path: string
   status: TicketPaymentTrancheStatus
   admin_notes: string

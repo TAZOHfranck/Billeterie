@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.ticket_payment_tranches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   request_id uuid NOT NULL REFERENCES public.ticket_requests(id) ON DELETE CASCADE,
   amount numeric(12,2) NOT NULL CHECK (amount > 0),
+  receipt_token uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
   payment_proof_path text NOT NULL,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   admin_notes text NOT NULL DEFAULT '',
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS public.ticket_payment_tranches (
 
 CREATE INDEX IF NOT EXISTS idx_ticket_payment_tranches_request ON public.ticket_payment_tranches(request_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_payment_tranches_status ON public.ticket_payment_tranches(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_payment_tranches_receipt_token ON public.ticket_payment_tranches(receipt_token);
 
 ALTER TABLE public.ticket_payment_tranches ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "ticket_payment_tranches_owner_read" ON public.ticket_payment_tranches;
@@ -561,6 +563,7 @@ BEGIN
     'approved_amount', request_row.approved_amount,
     'target_amount', request_row.target_amount,
     'remaining_amount', GREATEST(request_row.target_amount - request_row.approved_amount, 0),
+    'receipt_token', tranche_row.receipt_token,
     'ticket_token', CASE WHEN request_row.ticket_id IS NULL THEN NULL ELSE (SELECT qr_token::text FROM public.tickets WHERE id = request_row.ticket_id) END,
     'event_name', COALESCE(event_name, 'votre événement')
   );
