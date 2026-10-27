@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Bell, Calendar, Loader2, LogOut, Ticket as TicketIcon } from 'lucide-react'
+import { ArrowLeft, Bell, Calendar, Loader2, LogOut, Ticket as TicketIcon, Upload } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../lib/supabase'
+import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
 import { requestOneSignalPermission } from '../../lib/oneSignal'
 import { TicketRequest, TicketWithRelations } from '../../types'
 
@@ -14,6 +14,11 @@ export default function MyTicketsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pushMessage, setPushMessage] = useState<string | null>(null)
+  const [trancheRequestId, setTrancheRequestId] = useState<string | null>(null)
+  const [trancheAmount, setTrancheAmount] = useState('')
+  const [trancheProof, setTrancheProof] = useState<File | null>(null)
+  const [trancheLoading, setTrancheLoading] = useState(false)
+  const [trancheMessage, setTrancheMessage] = useState<string | null>(null)
   const notificationWarning = typeof location.state === 'object' &&
     location.state !== null &&
     'notificationWarning' in location.state &&
@@ -26,7 +31,7 @@ export default function MyTicketsPage() {
     let active = true
     Promise.all([
       supabase.from('tickets').select('*, table:tables(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('ticket_requests').select('*, table:tables(*), ticket:tickets(qr_token)').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('ticket_requests').select('*, table:tables(*), payment_method:payment_methods(*), ticket:tickets(qr_token), tranches:ticket_payment_tranches(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
     ]).then(([ticketResult, requestResult]) => {
       if (!active) return
       if (ticketResult.error || requestResult.error) {
@@ -49,6 +54,50 @@ export default function MyTicketsPage() {
     used: 'Utilisé',
   }
   const hasReservations = requests.length > 0 || tickets.length > 0
+  const submitTranche = async (request: TicketRequest) => {
+    setTrancheMessage(null)
+    const amount = Number(trancheAmount)
+    const remaining = Number(request.target_amount) - Number(request.approved_amount)
+    if (!trancheProof || amount <= 0 || amount > remaining) {
+      setTrancheMessage('Saisissez un montant valide et ajoutez la preuve du versement.')
+      return
+    }
+
+    setTrancheLoading(true)
+    try {
+      const fileExt = trancheProof.name.split('.').pop()
+      const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+      const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, trancheProof)
+      if (uploadError) throw uploadError
+
+      const { data: trancheId, error: submitError } = await supabase.rpc('submit_ticket_payment_tranche', {
+        p_request_id: request.id,
+        p_payment_proof_path: filePath,
+        p_amount: amount,
+      })
+      if (submitError) throw submitError
+
+      await supabase.functions.invoke('send-ticket-request-email', {
+        body: { request_id: request.id, tranche_id: trancheId },
+      })
+
+      setTrancheRequestId(null)
+      setTrancheAmount('')
+      setTrancheProof(null)
+      setTrancheMessage('Versement enregistré. Il attend la validation de l’administration.')
+      const { data } = await supabase
+        .from('ticket_requests')
+        .select('*, table:tables(*), payment_method:payment_methods(*), ticket:tickets(qr_token), tranches:ticket_payment_tranches(*)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      setRequests((data || []) as TicketRequest[])
+    } catch (error) {
+      setTrancheMessage(error instanceof Error ? error.message : 'Impossible d’enregistrer le versement.')
+    } finally {
+      setTrancheLoading(false)
+    }
+  }
+
   const enablePushNotifications = async () => {
     if (!user) return
     setPushMessage(null)
@@ -92,6 +141,54 @@ export default function MyTicketsPage() {
                   <span>{request.quantity} place(s)</span>
                 </div>
                 {request.admin_notes && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{request.admin_notes}</p>}
+                {request.status === 'pending' && request.payment_mode === 'installment' && (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm font-semibold text-amber-900">Paiement par tranche</p>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                      <div><span className="block text-xs text-gray-500">Total</span><strong>{Number(request.target_amount).toLocaleString('fr-FR')} F</strong></div>
+                      <div><span className="block text-xs text-gray-500">Validé</span><strong className="text-green-700">{Number(request.approved_amount).toLocaleString('fr-FR')} F</strong></div>
+                      <div><span className="block text-xs text-gray-500">Restant</span><strong className="text-red-700">{Math.max(0, Number(request.target_amount) - Number(request.approved_amount)).toLocaleString('fr-FR')} F</strong></div>
+                    </div>
+                    {request.tranches?.length ? (
+                      <ul className="mt-3 space-y-1 text-xs text-gray-600">
+                        {request.tranches.map(tranche => (
+                          <li key={tranche.id} className="flex justify-between gap-2"><span>{Number(tranche.amount).toLocaleString('fr-FR')} F · {new Date(tranche.created_at).toLocaleDateString('fr-FR')}</span><span>{tranche.status === 'approved' ? 'Validé' : tranche.status === 'rejected' ? 'Refusé' : 'En attente'}</span></li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {request.status === 'pending' && request.payment_status !== 'paid' && trancheRequestId !== request.id ? (
+                      <button type="button" onClick={() => { setTrancheRequestId(request.id); setTrancheAmount(''); setTrancheProof(null); setTrancheMessage(null) }} className="btn-primary mt-4 inline-flex">Ajouter un versement</button>
+                    ) : null}
+                  </div>
+                )}
+                {trancheRequestId === request.id && (
+                  <div className="mt-3 space-y-3 rounded-xl border border-gray-200 bg-white p-4">
+                    {(() => {
+                      const remaining = Math.max(0, Number(request.target_amount) - Number(request.approved_amount))
+                      const receiver = request.payment_method?.receiver_number?.replace(/\D/g, '') || ''
+                      const code = (request.payment_method?.ussd_template || '')
+                        .replace(/\{\{receiver\}\}/g, receiver)
+                        .replace(/\{\{amount\}\}/g, String(Math.round(Number(trancheAmount) || 0)))
+                      const validCode = /^[0-9*#]+$/.test(code) && (!request.payment_method?.ussd_template.includes('{{receiver}}') || Boolean(receiver))
+                      return (
+                        <>
+                          <label className="block text-sm font-medium text-gray-700">Montant du nouveau versement</label>
+                          <input type="number" min="1" max={remaining} step="1" value={trancheAmount} onChange={event => setTrancheAmount(event.target.value)} className="input-field" />
+                          {validCode && Number(trancheAmount) > 0 && (
+                            <div className="rounded-lg bg-gray-50 p-3">
+                              <p className="text-xs text-gray-500">Code USSD du versement</p>
+                              <code className="mt-1 block break-all font-mono text-sm">{code}</code>
+                              <a href={`tel:${encodeURIComponent(code)}`} className="btn-primary mt-3 inline-flex">Ouvrir le composeur</a>
+                            </div>
+                          )}
+                          <label className="block"><span className="mb-1 block text-sm font-medium text-gray-700">Preuve de versement</span><input type="file" accept="image/*,.pdf" onChange={event => setTrancheProof(event.target.files?.[0] || null)} className="input-field" /></label>
+                          <div className="flex gap-2"><button type="button" onClick={() => submitTranche(request)} disabled={trancheLoading} className="btn-primary inline-flex items-center gap-2"><Upload className="h-4 w-4" />{trancheLoading ? 'Enregistrement...' : 'Envoyer la tranche'}</button><button type="button" onClick={() => setTrancheRequestId(null)} className="btn-secondary">Annuler</button></div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+                {trancheMessage && <p role="status" className="mt-3 text-sm text-amber-700">{trancheMessage}</p>}
                 {request.status === 'pending' && <p className="mt-3 text-sm text-amber-700">Votre demande est en cours de vérification. Aucun billet n’a encore été émis.</p>}
                 {request.status === 'approved' && request.ticket?.qr_token && <Link to={`/ticket/${request.ticket.qr_token}`} className="btn-primary mt-4 inline-flex">Afficher le billet validé</Link>}
                 {request.status === 'rejected' && <p className="mt-3 text-sm text-red-700">La demande a été refusée. Consultez votre notification push pour plus d’informations.</p>}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, Calendar, MapPin, Phone, Mail, Image as ImageIcon } from 'lucide-react'
+import { Save, Loader2, Calendar, MapPin, Phone, Mail, Image as ImageIcon, CreditCard } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { EventSettings } from '../../types'
 
@@ -16,6 +16,7 @@ export default function AdminSettings() {
     contact_phone: '',
     contact_email: '',
     banner_url: '',
+    installment_payments_enabled: false,
   })
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export default function AdminSettings() {
           contact_phone: data.contact_phone || '',
           contact_email: data.contact_email || '',
           banner_url: data.banner_url || '',
+          installment_payments_enabled: Boolean(data.installment_payments_enabled),
         })
       }
       setLoading(false)
@@ -49,6 +51,7 @@ export default function AdminSettings() {
       contact_phone: form.contact_phone,
       contact_email: form.contact_email,
       banner_url: form.banner_url,
+      installment_payments_enabled: form.installment_payments_enabled,
       updated_at: new Date().toISOString(),
     }).eq('id', settings.id)
 
@@ -160,6 +163,21 @@ export default function AdminSettings() {
           {form.banner_url && (
             <img src={form.banner_url} alt="Aperçu bannière" className="mt-2 w-full h-32 object-cover rounded-lg" />
           )}
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={form.installment_payments_enabled}
+              onChange={event => setForm({ ...form, installment_payments_enabled: event.target.checked })}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-accent-600"
+            />
+            <span>
+              <span className="flex items-center gap-1 font-medium text-gray-900"><CreditCard className="h-4 w-4" /> Paiements par tranche</span>
+              <span className="mt-1 block text-sm text-gray-500">Permet aux clients de payer plusieurs versements jusqu’au montant total du billet. Chaque tranche reste soumise à validation.</span>
+            </span>
+          </label>
         </div>
 
         <div className="flex items-center gap-3 pt-2">

@@ -42,7 +42,7 @@ export default function AdminTickets() {
     setRequestsLoading(true)
     const { data, error } = await supabase
       .from('ticket_requests')
-      .select('*, table:tables(*), payment_method:payment_methods(*), ticket:tickets(qr_token)')
+      .select('*, table:tables(*), payment_method:payment_methods(*), ticket:tickets(qr_token), tranches:ticket_payment_tranches(*)')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -125,6 +125,29 @@ export default function AdminTickets() {
     } else if (data?.status === 'failed') {
       setRequestError('Échec d’envoi')
     }
+    setActionLoading(false)
+  }
+
+  const decideTranche = async (request: TicketRequest, trancheId: string, decision: 'approved' | 'rejected') => {
+    setActionLoading(true)
+    setRequestError(null)
+    const { data: decisionData, error: decisionError } = await supabase.rpc('decide_ticket_payment_tranche', {
+      p_tranche_id: trancheId,
+      p_decision: decision,
+      p_admin_notes: '',
+    })
+    if (decisionError) {
+      setRequestError(`La tranche n’a pas été enregistrée : ${decisionError.message}`)
+      setActionLoading(false)
+      return
+    }
+
+    const { data: pushData, error: pushError } = await supabase.functions.invoke('send-ticket-decision-push', {
+      body: { request_id: request.id, tranche_id: trancheId },
+    })
+    await Promise.all([loadRequests(), loadTickets()])
+    if (pushError || pushData?.status === 'failed') setRequestError('Échec d’envoi')
+    else if (decisionData?.remaining_amount === 0) setRequestError(null)
     setActionLoading(false)
   }
 
@@ -264,7 +287,28 @@ export default function AdminTickets() {
                       <td className="px-4 py-4 text-sm text-gray-700">
                         <p>{request.table?.name || 'Table indisponible'} · {request.quantity} place(s)</p>
                         <p className="text-xs text-gray-500">{request.payment_method?.name || 'Paiement indisponible'}</p>
-                        <a href={proofUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-primary-600 hover:underline">Voir la preuve</a>
+                        <a href={proofUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-primary-600 hover:underline">Voir la preuve initiale</a>
+                        {request.payment_mode === 'installment' && (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-xs font-semibold text-amber-900">Versements : {Number(request.approved_amount).toLocaleString('fr-FR')} / {Number(request.target_amount).toLocaleString('fr-FR')} F</p>
+                            <p className="mt-1 text-xs text-gray-600">Restant : {Math.max(0, Number(request.target_amount) - Number(request.approved_amount)).toLocaleString('fr-FR')} F</p>
+                            {request.tranches?.map(tranche => (
+                              <div key={tranche.id} className="mt-2 border-t border-amber-200 pt-2">
+                                <div className="flex items-center justify-between gap-2 text-xs"><span>{Number(tranche.amount).toLocaleString('fr-FR')} F</span><span>{tranche.status === 'pending' ? 'En attente' : tranche.status === 'approved' ? 'Validée' : 'Refusée'}</span></div>
+                                <a href={supabase.storage.from(STORAGE_BUCKET).getPublicUrl(tranche.payment_proof_path).data.publicUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-600 hover:underline">Voir la preuve</a>
+                                {tranche.status === 'pending' && request.status === 'pending' && (
+                                  <div className="mt-2 flex gap-2">
+                                    <button type="button" onClick={() => decideTranche(request, tranche.id, 'approved')} disabled={actionLoading} className="btn-success px-2 py-1 text-xs">Valider</button>
+                                    <button type="button" onClick={() => decideTranche(request, tranche.id, 'rejected')} disabled={actionLoading} className="btn-danger px-2 py-1 text-xs">Refuser</button>
+                                  </div>
+                                )}
+                                {tranche.status !== 'pending' && (
+                                  <a href={`mailto:${encodeURIComponent(request.email)}?subject=${encodeURIComponent(tranche.status === 'approved' ? 'Versement validé' : 'Versement refusé')}&body=${encodeURIComponent(`Bonjour ${request.full_name},\n\nVotre versement de ${Number(tranche.amount).toLocaleString('fr-FR')} F a été ${tranche.status === 'approved' ? 'validé' : 'refusé'}.\nSolde restant : ${Math.max(0, Number(request.target_amount) - Number(request.approved_amount)).toLocaleString('fr-FR')} F.\n${tranche.admin_notes ? `Motif : ${tranche.admin_notes}\n` : ''}\nCordialement,\nL’équipe de l’événement`)}`} className="mt-2 inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"><Mail className="h-3 w-3" /> Préparer l’email / reçu</a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {request.admin_notes && <p className="mt-2 text-xs text-amber-700">{request.admin_notes}</p>}
                         {qrToken && <button onClick={() => openTicket(qrToken)} className="mt-2 block text-xs text-primary-600 hover:underline">Ouvrir le billet émis</button>}
                       </td>
@@ -274,7 +318,7 @@ export default function AdminTickets() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap justify-end gap-2">
-                          {request.status === 'pending' && (
+                          {request.status === 'pending' && request.payment_mode === 'full' && (
                             <>
                               <button onClick={() => decideRequest(request, 'approved')} className="btn-success inline-flex items-center gap-1 px-3 py-2 text-xs" disabled={actionLoading}>
                                 <CheckCircle className="h-4 w-4" /> Valider

@@ -40,9 +40,11 @@ Deno.serve(async request => {
   }
 
   let requestId: string
+  let trancheId: string | null = null
   try {
     const body = await request.json()
     requestId = body.request_id
+    trancheId = typeof body.tranche_id === 'string' && body.tranche_id ? body.tranche_id : null
     if (typeof requestId !== 'string' || !requestId) return jsonResponse({ error: 'request_id is required' }, 400)
   } catch {
     return jsonResponse({ error: 'Invalid JSON request body' }, 400)
@@ -54,10 +56,9 @@ Deno.serve(async request => {
   const { data: userData, error: userError } = await supabase.auth.getUser()
   if (userError || !userData.user) return jsonResponse({ error: 'A valid authenticated session is required' }, 401)
 
-  const { data: notification, error: claimError } = await supabase.rpc(
-    'claim_ticket_decision_push',
-    { p_request_id: requestId },
-  )
+  const { data: notification, error: claimError } = trancheId
+    ? await supabase.rpc('claim_ticket_payment_tranche_push', { p_tranche_id: trancheId })
+    : await supabase.rpc('claim_ticket_decision_push', { p_request_id: requestId })
   if (claimError) {
     console.error('Could not claim ticket decision push:', claimError)
     const isAdminAccessError = claimError.message.includes('Administrator access is required')
@@ -78,6 +79,8 @@ Deno.serve(async request => {
   }
 
   const approved = notification.decision === 'approved'
+  const isTranche = typeof notification.tranche_id === 'string'
+  const remainingAmount = Number(notification.remaining_amount || 0)
   const ticketUrl = notification.ticket_token
     ? `${siteUrl}/ticket/${encodeURIComponent(notification.ticket_token)}`
     : `${siteUrl}/my-tickets`
@@ -95,20 +98,29 @@ Deno.serve(async request => {
         include_aliases: { external_id: [notification.user_id] },
         target_channel: 'push',
         headings: {
-          en: approved ? 'Request approved' : 'Request declined',
-          fr: approved ? 'Demande validée' : 'Demande refusée',
+          en: approved ? (isTranche && remainingAmount > 0 ? 'Payment tranche approved' : 'Request approved') : 'Request declined',
+          fr: approved ? (isTranche && remainingAmount > 0 ? 'Versement validé' : 'Demande validée') : 'Demande refusée',
         },
         contents: {
-          en: approved
-            ? `Your request for ${notification.event_name} has been approved. View your ticket.${reason}`
-            : `Your request for ${notification.event_name} has been declined.${reason}`,
-          fr: approved
-            ? `Votre demande pour ${notification.event_name} a été validée. Consultez votre billet.${reason}`
-            : `Votre demande pour ${notification.event_name} a été refusée.${reason}`,
+          en: isTranche
+            ? approved
+              ? `Your payment tranche for ${notification.event_name} was approved. ${remainingAmount} remains to be paid.${reason}`
+              : `Your payment tranche for ${notification.event_name} was declined.${reason}`
+            : approved
+              ? `Your request for ${notification.event_name} has been approved. View your ticket.${reason}`
+              : `Your request for ${notification.event_name} has been declined.${reason}`,
+          fr: isTranche
+            ? approved
+              ? `Votre versement pour ${notification.event_name} a été validé. Il reste ${remainingAmount.toLocaleString('fr-FR')} F à payer.${reason}`
+              : `Votre versement pour ${notification.event_name} a été refusé.${reason}`
+            : approved
+              ? `Votre demande pour ${notification.event_name} a été validée. Consultez votre billet.${reason}`
+              : `Votre demande pour ${notification.event_name} a été refusée.${reason}`,
         },
         url: ticketUrl,
         data: {
           request_id: requestId,
+          tranche_id: trancheId,
           decision: notification.decision,
           ticket_url: notification.ticket_token ? ticketUrl : null,
         },
@@ -147,10 +159,15 @@ Deno.serve(async request => {
       throw new Error('Aucun appareil ne reçoit les notifications. L’utilisateur doit activer les notifications push et se connecter de nouveau.')
     }
 
-    const { error: completionError } = await supabase.rpc('complete_ticket_decision_push', {
-      p_request_id: requestId,
-      p_sent: true,
-    })
+    const { error: completionError } = trancheId
+      ? await supabase.rpc('complete_ticket_payment_tranche_push', {
+          p_tranche_id: trancheId,
+          p_sent: true,
+        })
+      : await supabase.rpc('complete_ticket_decision_push', {
+          p_request_id: requestId,
+          p_sent: true,
+        })
     if (completionError) {
       return jsonResponse({ error: `Push sent but delivery status could not be saved: ${completionError.message}` }, 500)
     }
@@ -158,11 +175,17 @@ Deno.serve(async request => {
     return jsonResponse({ status: 'sent', message_id: providerBody.id, recipients: providerBody.recipients ?? null })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'OneSignal push delivery failed'
-    const { error: completionError } = await supabase.rpc('complete_ticket_decision_push', {
-      p_request_id: requestId,
-      p_sent: false,
-      p_error: message,
-    })
+    const { error: completionError } = trancheId
+      ? await supabase.rpc('complete_ticket_payment_tranche_push', {
+          p_tranche_id: trancheId,
+          p_sent: false,
+          p_error: message,
+        })
+      : await supabase.rpc('complete_ticket_decision_push', {
+          p_request_id: requestId,
+          p_sent: false,
+          p_error: message,
+        })
     if (completionError) {
       return jsonResponse({ error: `${message}; failed to record delivery failure: ${completionError.message}` }, 500)
     }

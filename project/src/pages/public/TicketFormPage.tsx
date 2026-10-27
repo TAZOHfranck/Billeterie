@@ -22,6 +22,8 @@ export default function TicketFormPage() {
   const [accountPassword, setAccountPassword] = useState('')
   const [accountLoading, setAccountLoading] = useState(false)
   const [paymentCodeMessage, setPaymentCodeMessage] = useState<string | null>(null)
+  const [paymentMode, setPaymentMode] = useState<'full' | 'installment'>('full')
+  const [trancheAmount, setTrancheAmount] = useState('')
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -113,6 +115,10 @@ export default function TicketFormPage() {
       setError('Veuillez importer la preuve de paiement')
       return
     }
+    if (paymentMode === 'installment' && (!selectedTable || !Number(trancheAmount) || Number(trancheAmount) > totalPrice)) {
+      setError('Saisissez un montant de tranche valide, inférieur ou égal au total')
+      return
+    }
 
     setSubmitting(true)
 
@@ -135,12 +141,26 @@ export default function TicketFormPage() {
         p_payment_method_id: formData.payment_method_id,
         p_payment_proof_path: filePath,
         p_quantity: formData.quantity,
+        p_payment_mode: paymentMode,
+        p_payment_amount: paymentMode === 'installment' ? Number(trancheAmount) : totalPrice,
       })
 
       if (insertError) throw insertError
 
+      let trancheId: string | null = null
+      if (paymentMode === 'installment') {
+        const { data: tranche } = await supabase
+          .from('ticket_payment_tranches')
+          .select('id')
+          .eq('request_id', requestId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        trancheId = tranche?.id || null
+      }
+
       const { error: notificationError } = await supabase.functions.invoke('send-ticket-request-email', {
-        body: { request_id: requestId },
+        body: { request_id: requestId, tranche_id: trancheId },
       })
       navigate('/my-tickets', {
         state: notificationError
@@ -156,9 +176,10 @@ export default function TicketFormPage() {
 
   const selectedTable = tables.find(t => t.id === formData.table_id)
   const totalPrice = selectedTable ? Number(selectedTable.price) * formData.quantity : 0
+  const paymentAmount = paymentMode === 'installment' ? Number(trancheAmount) : totalPrice
   const selectedPaymentMethod = paymentMethods.find(method => method.id === formData.payment_method_id)
   const ussdReceiver = selectedPaymentMethod?.receiver_number.replace(/\D/g, '') || ''
-  const ussdAmount = String(Math.round(totalPrice))
+  const ussdAmount = String(Math.round(paymentAmount))
   const ussdCode = selectedPaymentMethod?.ussd_template
     ? selectedPaymentMethod.ussd_template
       .replace(/\{\{receiver\}\}/g, ussdReceiver)
@@ -169,7 +190,8 @@ export default function TicketFormPage() {
   const isValidUssdCode = /^[0-9*#]+$/.test(ussdCode) &&
     (!needsReceiver || Boolean(ussdReceiver)) &&
     Boolean(selectedTable) &&
-    totalPrice > 0
+    paymentAmount > 0 &&
+    paymentAmount <= totalPrice
 
   const copyUssdCode = async () => {
     try {
@@ -346,6 +368,37 @@ export default function TicketFormPage() {
             )}
           </div>
 
+          {selectedTable && (
+            <>
+              <hr className="border-gray-100" />
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-gray-900">Type de paiement</h2>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button type="button" onClick={() => setPaymentMode('full')} className={`rounded-xl border-2 p-4 text-left ${paymentMode === 'full' ? 'border-accent-500 bg-accent-50' : 'border-gray-200'}`}>
+                    <p className="font-semibold text-gray-900">Payer le montant total</p>
+                    <p className="mt-1 text-sm text-gray-600">{totalPrice.toLocaleString('fr-FR')} F</p>
+                  </button>
+                  {settings?.installment_payments_enabled && (
+                    <button type="button" onClick={() => setPaymentMode('installment')} className={`rounded-xl border-2 p-4 text-left ${paymentMode === 'installment' ? 'border-accent-500 bg-accent-50' : 'border-gray-200'}`}>
+                      <p className="font-semibold text-gray-900">Payer par tranche</p>
+                      <p className="mt-1 text-sm text-gray-600">Plusieurs versements validés jusqu’au total.</p>
+                    </button>
+                  )}
+                </div>
+                {paymentMode === 'installment' && (
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Montant de ce versement</label>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="1" max={totalPrice} step="1" value={trancheAmount} onChange={event => setTrancheAmount(event.target.value)} className="input-field" placeholder={`Maximum ${totalPrice.toLocaleString('fr-FR')} F`} />
+                      <span className="shrink-0 text-sm font-bold text-gray-700">F CFA</span>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">Solde à payer après ce versement : {Math.max(0, totalPrice - (Number(trancheAmount) || 0)).toLocaleString('fr-FR')} F. Votre demande sera créée avec un versement en attente de validation.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
           <hr className="border-gray-100" />
 
           {/* Payment Method */}
@@ -381,8 +434,8 @@ export default function TicketFormPage() {
           {selectedTable && (
             <div className="rounded-xl border border-accent-200 bg-[#f7eee0] p-4">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Total à payer</span>
-                <span className="text-2xl font-bold text-accent-600">{totalPrice.toLocaleString()} F</span>
+                <span className="text-gray-600">{paymentMode === 'installment' ? 'Montant de cette tranche' : 'Total à payer'}</span>
+                <span className="text-2xl font-bold text-accent-600">{(paymentMode === 'installment' ? paymentAmount : totalPrice).toLocaleString()} F</span>
               </div>
             </div>
           )}
