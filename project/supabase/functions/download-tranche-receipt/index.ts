@@ -91,29 +91,33 @@ Deno.serve(async request => {
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey)
-  const { data: tranche, error: trancheError } = await supabase
-    .from('ticket_payment_tranches')
-    .select(`
-      receipt_token,
-      amount,
-      status,
-      decided_at,
-      request:ticket_requests(
-        full_name,
-        phone,
-        quantity,
-        target_amount,
-        approved_amount,
-        table:tables(name),
-        payment_method:payment_methods(name)
-      )
-    `)
-    .eq('receipt_token', token)
-    .eq('status', 'approved')
-    .maybeSingle()
+  const parsedToken = token
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsedToken)) {
+    return new Response('Invalid tranche receipt token', { status: 400 })
+  }
 
-  if (trancheError) return new Response('Unable to load tranche receipt', { status: 500 })
-  if (!tranche || !tranche.request) return new Response('Approved tranche receipt not found', { status: 404 })
+  const { data: receipt, error: receiptError } = await supabase.rpc(
+    'get_approved_tranche_receipt',
+    { p_receipt_token: parsedToken },
+  )
+
+  if (receiptError) {
+    return new Response('Approved tranche receipt not found', { status: 404 })
+  }
+  if (!receipt) return new Response('Approved tranche receipt not found', { status: 404 })
+
+  const tranche = receipt as {
+    receipt_token: string
+    amount: number
+    decided_at: string
+    full_name: string
+    phone: string
+    quantity: number
+    target_amount: number
+    approved_amount: number
+    table_name: string
+    payment_method_name: string
+  }
 
   const { data: settings, error: settingsError } = await supabase
     .from('event_settings')
@@ -126,14 +130,14 @@ Deno.serve(async request => {
     const pdf = await createTrancheReceiptPdf({
       receipt_token: tranche.receipt_token,
       amount: Number(tranche.amount),
-      approved_amount: Number(tranche.request.approved_amount),
-      target_amount: Number(tranche.request.target_amount),
+      approved_amount: Number(tranche.approved_amount),
+      target_amount: Number(tranche.target_amount),
       decided_at: tranche.decided_at,
-      full_name: tranche.request.full_name,
-      phone: tranche.request.phone,
-      quantity: tranche.request.quantity,
-      table_name: tranche.request.table?.name || 'N/A',
-      payment_method_name: tranche.request.payment_method?.name || 'N/A',
+      full_name: tranche.full_name,
+      phone: tranche.phone,
+      quantity: tranche.quantity,
+      table_name: tranche.table_name || 'N/A',
+      payment_method_name: tranche.payment_method_name || 'N/A',
     }, {
       event_name: settings?.event_name || 'Événement',
       event_location: settings?.event_location || 'À préciser',

@@ -600,3 +600,46 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.complete_ticket_payment_tranche_push(uuid, boolean, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.complete_ticket_payment_tranche_push(uuid, boolean, text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_approved_tranche_receipt(p_receipt_token uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  IF p_receipt_token IS NULL THEN
+    RAISE EXCEPTION 'A receipt token is required';
+  END IF;
+
+  SELECT jsonb_build_object(
+    'receipt_token', t.receipt_token,
+    'amount', t.amount,
+    'decided_at', t.decided_at,
+    'full_name', r.full_name,
+    'phone', r.phone,
+    'quantity', r.quantity,
+    'target_amount', r.target_amount,
+    'approved_amount', r.approved_amount,
+    'table_name', table_row.name,
+    'payment_method_name', payment_row.name
+  ) INTO result
+  FROM public.ticket_payment_tranches t
+  JOIN public.ticket_requests r ON r.id = t.request_id
+  LEFT JOIN public.tables table_row ON table_row.id = r.table_id
+  LEFT JOIN public.payment_methods payment_row ON payment_row.id = r.payment_method_id
+  WHERE t.receipt_token = p_receipt_token
+    AND t.status = 'approved'
+    AND t.decided_at IS NOT NULL;
+
+  IF result IS NULL THEN
+    RAISE EXCEPTION 'Approved tranche receipt not found';
+  END IF;
+
+  RETURN result;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.get_approved_tranche_receipt(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_approved_tranche_receipt(uuid) TO anon, authenticated;

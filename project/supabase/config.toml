@@ -1,2 +1,5 @@
 [functions.download-ticket-pdf]
 verify_jwt = false
+
+[functions.download-tranche-receipt]
+verify_jwt = false
