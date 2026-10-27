@@ -8,7 +8,14 @@ export default function AdminPaymentMethods() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PaymentMethod | null>(null)
-  const [form, setForm] = useState({ name: '', account_details: '', ussd_template: '', instructions: '', is_active: true })
+  const [form, setForm] = useState({
+    name: '',
+    account_details: '',
+    receiver_number: '',
+    ussd_template: '',
+    instructions: '',
+    is_active: true,
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,7 +28,7 @@ export default function AdminPaymentMethods() {
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', account_details: '', ussd_template: '', instructions: '', is_active: true })
+    setForm({ name: '', account_details: '', receiver_number: '', ussd_template: '', instructions: '', is_active: true })
     setShowModal(true)
   }
 
@@ -30,6 +37,7 @@ export default function AdminPaymentMethods() {
     setForm({
       name: method.name,
       account_details: method.account_details,
+      receiver_number: method.receiver_number || '',
       ussd_template: method.ussd_template || '',
       instructions: method.instructions,
       is_active: method.is_active,
@@ -43,6 +51,10 @@ export default function AdminPaymentMethods() {
       setError('Les détails du compte sont obligatoires pour ce mode de paiement')
       return
     }
+    if (form.ussd_template.includes('{{receiver}}') && !form.receiver_number.trim()) {
+      setError('Le numéro destinataire est obligatoire pour ce code USSD')
+      return
+    }
     setSaving(true)
     setError(null)
 
@@ -50,6 +62,7 @@ export default function AdminPaymentMethods() {
       const { error } = await supabase.from('payment_methods').update({
         name: form.name.trim(),
         account_details: form.account_details.trim(),
+        receiver_number: form.receiver_number.trim(),
         ussd_template: form.ussd_template.trim(),
         instructions: form.instructions.trim(),
         is_active: form.is_active,
@@ -63,6 +76,7 @@ export default function AdminPaymentMethods() {
       const { error } = await supabase.from('payment_methods').insert({
         name: form.name.trim(),
         account_details: form.account_details.trim(),
+        receiver_number: form.receiver_number.trim(),
         ussd_template: form.ussd_template.trim(),
         instructions: form.instructions.trim(),
         is_active: form.is_active,
@@ -134,6 +148,9 @@ export default function AdminPaymentMethods() {
                 </div>
               </div>
               <p className="text-sm text-gray-700 font-medium">{method.account_details}</p>
+              {method.receiver_number && (
+                <p className="mt-2 text-sm text-gray-600">Numéro destinataire : {method.receiver_number}</p>
+              )}
               {method.ussd_template && (
                 <p className="mt-2 break-all rounded-lg bg-gray-50 p-2 font-mono text-xs text-gray-700">
                   USSD : {method.ussd_template}
@@ -176,8 +193,21 @@ export default function AdminPaymentMethods() {
                     value={form.account_details}
                     onChange={e => setForm({ ...form, account_details: e.target.value })}
                     className="input-field"
-                    placeholder="Ex: Numéro: 07 00 00 00 00"
+                    placeholder="Ex: Compte mobile money principal"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Numéro destinataire (USSD)</label>
+                  <input
+                    type="tel"
+                    value={form.receiver_number}
+                    onChange={e => setForm({ ...form, receiver_number: e.target.value })}
+                    className="input-field"
+                    placeholder="Ex: 0700000000"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Ce numéro sera inséré dans {'{{receiver}}'} ; il est indépendant du numéro de téléphone du compte admin.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Modèle de code USSD (optionnel)</label>

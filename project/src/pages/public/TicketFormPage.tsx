@@ -157,11 +157,12 @@ export default function TicketFormPage() {
   const selectedTable = tables.find(t => t.id === formData.table_id)
   const totalPrice = selectedTable ? Number(selectedTable.price) * formData.quantity : 0
   const selectedPaymentMethod = paymentMethods.find(method => method.id === formData.payment_method_id)
-  const ussdReceiver = selectedPaymentMethod?.account_details.replace(/\D/g, '') || ''
+  const ussdReceiver = selectedPaymentMethod?.receiver_number.replace(/\D/g, '') || ''
+  const ussdAmount = String(Math.round(totalPrice))
   const ussdCode = selectedPaymentMethod?.ussd_template
     ? selectedPaymentMethod.ussd_template
       .replace(/\{\{receiver\}\}/g, ussdReceiver)
-      .replace(/\{\{amount\}\}/g, String(totalPrice))
+      .replace(/\{\{amount\}\}/g, ussdAmount)
       .trim()
     : ''
   const needsReceiver = selectedPaymentMethod?.ussd_template.includes('{{receiver}}') ?? false

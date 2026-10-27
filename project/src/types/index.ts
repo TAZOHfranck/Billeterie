@@ -24,6 +24,7 @@ export interface PaymentMethod {
   id: string
   name: string
   account_details: string
+  receiver_number: string
   ussd_template: string
   instructions: string
   is_active: boolean
