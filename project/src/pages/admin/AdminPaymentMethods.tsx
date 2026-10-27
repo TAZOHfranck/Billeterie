@@ -8,7 +8,7 @@ export default function AdminPaymentMethods() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<PaymentMethod | null>(null)
-  const [form, setForm] = useState({ name: '', account_details: '', instructions: '', is_active: true })
+  const [form, setForm] = useState({ name: '', account_details: '', ussd_template: '', instructions: '', is_active: true })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,36 +21,57 @@ export default function AdminPaymentMethods() {
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', account_details: '', instructions: '', is_active: true })
+    setForm({ name: '', account_details: '', ussd_template: '', instructions: '', is_active: true })
     setShowModal(true)
   }
 
   const openEdit = (method: PaymentMethod) => {
     setEditing(method)
-    setForm({ name: method.name, account_details: method.account_details, instructions: method.instructions, is_active: method.is_active })
+    setForm({
+      name: method.name,
+      account_details: method.account_details,
+      ussd_template: method.ussd_template || '',
+      instructions: method.instructions,
+      is_active: method.is_active,
+    })
     setShowModal(true)
   }
 
   const save = async () => {
     if (!form.name.trim()) { setError('Le nom est obligatoire'); return }
-    if (!form.account_details.trim()) { setError('Les détails du compte sont obligatoires'); return }
+    if (!form.account_details.trim() && (!form.ussd_template.trim() || form.ussd_template.includes('{{receiver}}'))) {
+      setError('Les détails du compte sont obligatoires pour ce mode de paiement')
+      return
+    }
     setSaving(true)
     setError(null)
 
     if (editing) {
-      await supabase.from('payment_methods').update({
+      const { error } = await supabase.from('payment_methods').update({
         name: form.name.trim(),
         account_details: form.account_details.trim(),
+        ussd_template: form.ussd_template.trim(),
         instructions: form.instructions.trim(),
         is_active: form.is_active,
       }).eq('id', editing.id)
+      if (error) {
+        setError(error.message)
+        setSaving(false)
+        return
+      }
     } else {
-      await supabase.from('payment_methods').insert({
+      const { error } = await supabase.from('payment_methods').insert({
         name: form.name.trim(),
         account_details: form.account_details.trim(),
+        ussd_template: form.ussd_template.trim(),
         instructions: form.instructions.trim(),
         is_active: form.is_active,
       })
+      if (error) {
+        setError(error.message)
+        setSaving(false)
+        return
+      }
     }
 
     setSaving(false)
@@ -113,6 +134,11 @@ export default function AdminPaymentMethods() {
                 </div>
               </div>
               <p className="text-sm text-gray-700 font-medium">{method.account_details}</p>
+              {method.ussd_template && (
+                <p className="mt-2 break-all rounded-lg bg-gray-50 p-2 font-mono text-xs text-gray-700">
+                  USSD : {method.ussd_template}
+                </p>
+              )}
               {method.instructions && (
                 <p className="text-xs text-gray-400 mt-2 italic">{method.instructions}</p>
               )}
@@ -152,6 +178,19 @@ export default function AdminPaymentMethods() {
                     className="input-field"
                     placeholder="Ex: Numéro: 07 00 00 00 00"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Modèle de code USSD (optionnel)</label>
+                  <input
+                    type="text"
+                    value={form.ussd_template}
+                    onChange={e => setForm({ ...form, ussd_template: e.target.value })}
+                    className="input-field font-mono"
+                    placeholder="Ex: *126*1*1*{{receiver}}*{{amount}}#"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Utilisez {'{{receiver}}'} pour le numéro du compte et {'{{amount}}'} pour le montant total, ou saisissez un code fixe comme #150*1#.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Instructions (optionnel)</label>

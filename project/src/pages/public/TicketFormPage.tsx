@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, CheckCircle, Loader2, Calendar, MapPin, Phone, Lock, Mail } from 'lucide-react'
+import { ArrowLeft, Upload, CheckCircle, Loader2, Calendar, MapPin, Phone, Lock, Mail, Copy, Smartphone } from 'lucide-react'
 import { supabase, STORAGE_BUCKET } from '../../lib/supabase'
 import { TableSeat, PaymentMethod, EventSettings } from '../../types'
 import { useAuth } from '../../context/AuthContext'
@@ -21,6 +21,7 @@ export default function TicketFormPage() {
   const [accountEmail, setAccountEmail] = useState('')
   const [accountPassword, setAccountPassword] = useState('')
   const [accountLoading, setAccountLoading] = useState(false)
+  const [paymentCodeMessage, setPaymentCodeMessage] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -155,6 +156,28 @@ export default function TicketFormPage() {
 
   const selectedTable = tables.find(t => t.id === formData.table_id)
   const totalPrice = selectedTable ? Number(selectedTable.price) * formData.quantity : 0
+  const selectedPaymentMethod = paymentMethods.find(method => method.id === formData.payment_method_id)
+  const ussdReceiver = selectedPaymentMethod?.account_details.replace(/\D/g, '') || ''
+  const ussdCode = selectedPaymentMethod?.ussd_template
+    ? selectedPaymentMethod.ussd_template
+      .replace(/\{\{receiver\}\}/g, ussdReceiver)
+      .replace(/\{\{amount\}\}/g, String(totalPrice))
+      .trim()
+    : ''
+  const needsReceiver = selectedPaymentMethod?.ussd_template.includes('{{receiver}}') ?? false
+  const isValidUssdCode = /^[0-9*#]+$/.test(ussdCode) &&
+    (!needsReceiver || Boolean(ussdReceiver)) &&
+    Boolean(selectedTable) &&
+    totalPrice > 0
+
+  const copyUssdCode = async () => {
+    try {
+      await navigator.clipboard.writeText(ussdCode)
+      setPaymentCodeMessage('Code copié. Ouvrez le composeur de votre téléphone pour l’exécuter.')
+    } catch {
+      setPaymentCodeMessage('Copie indisponible sur cet appareil. Sélectionnez et copiez le code manuellement.')
+    }
+  }
 
   if (loading) {
     return (
@@ -361,6 +384,45 @@ export default function TicketFormPage() {
                 <span className="text-2xl font-bold text-accent-600">{totalPrice.toLocaleString()} F</span>
               </div>
             </div>
+          )}
+
+          {selectedPaymentMethod?.ussd_template && (
+            <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-4" aria-labelledby="ussd-payment-heading">
+              <h2 id="ussd-payment-heading" className="font-semibold text-gray-900">Payer par USSD</h2>
+              {isValidUssdCode ? (
+                <>
+                  <p className="text-sm text-gray-600">
+                    Le bouton peut ouvrir le composeur de votre téléphone avec ce code. Selon votre appareil et votre opérateur, vous devrez peut-être confirmer l’exécution.
+                  </p>
+                  <code className="block break-all rounded-lg bg-gray-100 p-3 font-mono text-sm text-gray-900">{ussdCode}</code>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <a
+                      href={`tel:${encodeURIComponent(ussdCode)}`}
+                      className="btn-primary inline-flex items-center justify-center gap-2"
+                    >
+                      <Smartphone className="h-4 w-4" />
+                      Ouvrir le composeur
+                    </a>
+                    <button
+                      type="button"
+                      onClick={copyUssdCode}
+                      className="btn-secondary inline-flex items-center justify-center gap-2"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copier le code
+                    </button>
+                  </div>
+                  {paymentCodeMessage && <p role="status" className="text-sm text-gray-600">{paymentCodeMessage}</p>}
+                </>
+              ) : (
+                <p className="text-sm text-amber-700">
+                  Le code USSD n’est pas prêt. Vérifiez le numéro du compte, le montant et le modèle configuré par l’administration.
+                </p>
+              )}
+              {selectedPaymentMethod.instructions && (
+                <p className="text-sm italic text-gray-500">{selectedPaymentMethod.instructions}</p>
+              )}
+            </section>
           )}
 
           <hr className="border-gray-100" />
