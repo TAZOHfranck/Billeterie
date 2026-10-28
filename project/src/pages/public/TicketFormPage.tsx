@@ -330,7 +330,7 @@ export default function TicketFormPage() {
                 
                
                 value={formData.quantity}
-                onChange={e => setFormData({ ...formData, quantity: Math.max(1, Math.min(10, parseInt(e.target.value) || 1)) })}
+                onChange={e => setFormData({ ...formData, quantity: Math.max(1, Math.min(100, parseInt(e.target.value) || 1)) })}
                 className="input-field w-24"
               />
             </div>
