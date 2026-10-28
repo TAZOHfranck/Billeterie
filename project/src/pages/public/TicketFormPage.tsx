@@ -327,7 +327,8 @@ export default function TicketFormPage() {
               <input
                 type="number"
                 min="1"
-                max="10"
+                
+               
                 value={formData.quantity}
                 onChange={e => setFormData({ ...formData, quantity: Math.max(1, Math.min(10, parseInt(e.target.value) || 1)) })}
                 className="input-field w-24"
