@@ -154,7 +154,7 @@ export default function MyTicketsPage() {
                     {request.tranches?.length ? (
                       <ul className="mt-3 space-y-1 text-xs text-gray-600">
                         {request.tranches.map(tranche => (
-                          <li key={tranche.id} className="flex flex-col gap-1 border-b border-amber-100 pb-2"><span className="flex justify-between gap-2"><span>{Number(tranche.amount).toLocaleString('fr-FR')} F · {new Date(tranche.created_at).toLocaleDateString('fr-FR')}</span><span>{tranche.status === 'approved' ? 'Validé' : tranche.status === 'rejected' ? 'Refusé' : 'En attente'}</span></span>{tranche.status === 'approved' && <Link to={`/payment-receipt/${encodeURIComponent(tranche.receipt_token)}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent-700 hover:underline">Voir / imprimer le ticket du versement</Link>}</li>
+                          <li key={tranche.id} className="flex flex-col gap-1 border-b border-amber-100 pb-2"><span className="flex justify-between gap-2"><span>{Number(tranche.amount).toLocaleString('fr-FR')} F · {new Date(tranche.created_at).toLocaleDateString('fr-FR')}</span><span>{tranche.status === 'approved' ? 'Validé' : tranche.status === 'rejected' ? 'Refusé' : 'En attente'}</span></span>{tranche.status === 'approved' && <Link to={`/payment-receipt/${encodeURIComponent(tranche.receipt_token)}`}  rel="noopener noreferrer" className="text-xs font-semibold text-accent-700 hover:underline">Voir / imprimer le ticket du versement</Link>}</li>
                         ))}
                       </ul>
                     ) : null}
