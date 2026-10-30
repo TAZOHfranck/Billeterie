@@ -52,6 +52,58 @@ body { margin: 0; min-height: 100vh; background: #031b3b; }
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
+
+  .payment-receipt-page {
+    width: 148mm !important;
+    height: 210mm !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .payment-receipt-sheet {
+    display: grid !important;
+    grid-template-rows: 38mm 10mm 1fr !important;
+    width: 148mm !important;
+    height: 210mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+  .payment-receipt-header {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    padding: 5mm 8mm !important;
+  }
+  .payment-receipt-header h1 { margin-top: 2mm !important; font-size: 24pt !important; line-height: 1 !important; }
+  .payment-receipt-header p { font-size: 7pt !important; }
+  .payment-receipt-content {
+    min-height: 0 !important;
+    grid-template-columns: minmax(0, 1fr) 42mm !important;
+    gap: 4mm !important;
+    padding: 6mm 7mm !important;
+    overflow: hidden !important;
+  }
+  .payment-receipt-details { min-width: 0 !important; overflow: hidden !important; }
+  .payment-receipt-details h2 { font-size: 16pt !important; line-height: 1.1 !important; }
+  .payment-receipt-details > div:first-of-type { gap: 3mm !important; margin-top: 5mm !important; }
+  .payment-receipt-details > div:first-of-type > div > p:last-child { overflow-wrap: anywhere !important; font-size: 8pt !important; }
+  .payment-receipt-details > div:nth-of-type(2) { margin-top: 5mm !important; padding: 3mm 0 !important; }
+  .payment-receipt-details > p:last-child { margin-top: 3mm !important; font-size: 6pt !important; }
+  .payment-receipt-qr {
+    min-width: 0 !important;
+    padding: 0 0 0 3mm !important;
+    border-top: 0 !important;
+    border-left: 1px solid #e5e7eb !important;
+  }
+  .payment-receipt-qr img { width: 36mm !important; height: 36mm !important; }
+  .payment-receipt-qr > p { font-size: 6pt !important; }
   .no-print { display: none !important; }
   .ticket-page {
     width: 148mm !important;

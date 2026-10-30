@@ -2,8 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download, Mail, Printer } from 'lucide-react'
 import { supabase, STORAGE_BUCKET, supabaseUrl } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
-import { useNavigate } from 'react-router-dom'
-import QRCode from 'qrcode'
+import { Link, useNavigate } from 'react-router-dom'
 
 type FilterStatus = 'all' | TicketStatus
 
@@ -100,42 +99,6 @@ export default function AdminTickets() {
       setRequestError('La notification push est déjà en cours d’envoi. Réessayez dans quelques instants.')
     }
     setActionLoading(false)
-  }
-
-  const printTrancheReceipt = async (request: TicketRequest, tranche: NonNullable<TicketRequest['tranches']>[number]) => {
-    const printWindow = window.open('', '_blank', 'noreferrer')
-    if (!printWindow) {
-      setRequestError('Autorisez les fenêtres contextuelles pour imprimer le ticket.')
-      return
-    }
-
-    const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, character => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
-    })[character] || character)
-    const qrUrl = await QRCode.toDataURL(tranche.receipt_token, { width: 240, margin: 1 })
-    const remaining = Math.max(0, Number(request.target_amount) - Number(request.approved_amount))
-    const decidedAt = tranche.decided_at ? new Date(tranche.decided_at).toLocaleString('fr-FR') : ''
-
-    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Ticket de versement</title>
-      <style>
-        @page{size:A5 portrait;margin:0}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#160806;background:white}
-        .ticket{width:148mm;height:210mm;padding:9mm;border:1.5mm solid #b8811f;background:#fffdf7;position:relative}
-        .header{margin:-9mm -9mm 7mm;padding:7mm 9mm;background:#170806;color:white;border-bottom:3px solid #d1a23d;text-align:center}
-        .header p{margin:0 0 3mm;font-size:9pt;letter-spacing:.25em;color:#f1ca74}.header h1{margin:0;font-size:22pt}
-        .validated{text-align:center;margin:0 0 5mm;padding:3mm;background:#e8f5ec;color:#166534;font-weight:bold}.name{font-size:19pt;font-weight:bold;text-transform:uppercase;margin:0 0 2mm}
-        .muted{color:#666;font-size:9pt}.grid{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin:5mm 0}.grid p{margin:0}.label{display:block;font-size:7pt;color:#777;font-weight:bold;margin-bottom:1mm}.amount{font-size:17pt;font-weight:bold}
-        .summary{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px dashed #b8811f;border-bottom:1px dashed #b8811f;padding:4mm 0;text-align:center}.summary strong{display:block;font-size:12pt}
-        .footer{display:grid;grid-template-columns:1fr 28mm;align-items:end;gap:5mm;margin-top:5mm}.qr img{width:28mm;height:28mm}.reference{font-size:6pt;overflow-wrap:anywhere;margin-top:2mm}
-        @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-      </style></head><body><main class="ticket">
-        <div class="header"><p>IPD-YAOUNDÉ PRÉSENTE</p><h1>Ticket de versement</h1></div>
-        <div class="validated">VERSEMENT VALIDÉ</div>
-        <p class="name">${escapeHtml(request.full_name)}</p><p class="muted">${escapeHtml(request.phone)} · ${escapeHtml(request.email)}</p>
-        <div class="grid"><p><span class="label">TABLE</span><strong>${escapeHtml(request.table?.name || 'N/A')}</strong></p><p><span class="label">PLACES</span><strong>${request.quantity}</strong></p><p><span class="label">MODE DE PAIEMENT</span><strong>${escapeHtml(request.payment_method?.name || 'N/A')}</strong></p><p><span class="label">MONTANT DU VERSEMENT</span><strong class="amount">${Number(tranche.amount).toLocaleString('fr-FR')} F</strong></p></div>
-        <div class="summary"><p><span class="label">TOTAL ACHAT</span><strong>${Number(request.target_amount).toLocaleString('fr-FR')} F</strong></p><p><span class="label">CUMUL VALIDÉ</span><strong>${Number(request.approved_amount).toLocaleString('fr-FR')} F</strong></p><p><span class="label">SOLDE RESTANT</span><strong>${remaining.toLocaleString('fr-FR')} F</strong></p></div>
-        <div class="footer"><div><p class="muted">Validé le ${escapeHtml(decidedAt)}</p><p class="reference">Référence : ${escapeHtml(tranche.receipt_token)}</p><p class="muted">Ce ticket atteste la validation d’un versement.</p></div><div class="qr"><img src="${qrUrl}" alt="QR code du versement"></div></div>
-      </main><script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`)
-    printWindow.document.close()
   }
 
   const decideRequest = async (request: TicketRequest, decision: 'approved' | 'rejected') => {
@@ -344,7 +307,7 @@ export default function AdminTickets() {
                                     {tranche.status === 'approved' && (
                                       <div className="flex flex-wrap gap-3">
                                         <a href={`${supabaseUrl}/functions/v1/download-tranche-receipt?token=${encodeURIComponent(tranche.receipt_token)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"><Download className="h-3 w-3" /> Télécharger le ticket du versement</a>
-                                        <button type="button" onClick={() => printTrancheReceipt(request, tranche)} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"><Printer className="h-3 w-3" /> Imprimer le ticket</button>
+                                        <Link to={`/payment-receipt/${encodeURIComponent(tranche.receipt_token)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"><Printer className="h-3 w-3" /> Voir / imprimer le ticket</Link>
                                       </div>
                                     )}
                                     <a href={`mailto:${encodeURIComponent(request.email)}?subject=${encodeURIComponent(tranche.status === 'approved' ? 'Versement validé' : 'Versement refusé')}&body=${encodeURIComponent(`Bonjour ${request.full_name},\n\nVotre versement de ${Number(tranche.amount).toLocaleString('fr-FR')} F a été ${tranche.status === 'approved' ? 'validé' : 'refusé'}.\nSolde restant : ${Math.max(0, Number(request.target_amount) - Number(request.approved_amount)).toLocaleString('fr-FR')} F.\n${tranche.status === 'approved' ? `Ticket PDF du versement : ${supabaseUrl}/functions/v1/download-tranche-receipt?token=${encodeURIComponent(tranche.receipt_token)}\n` : ''}${tranche.admin_notes ? `Motif : ${tranche.admin_notes}\n` : ''}\nCordialement,\nL’équipe de l’événement`)}`} className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"><Mail className="h-3 w-3" /> Préparer l’email / reçu</a>

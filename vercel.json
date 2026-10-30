@@ -6,6 +6,7 @@
     { "source": "/reserve", "destination": "/index.html" },
     { "source": "/my-tickets", "destination": "/index.html" },
     { "source": "/ticket/:token", "destination": "/index.html" },
+    { "source": "/payment-receipt/:token", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/admin/:section", "destination": "/index.html" }
   ]

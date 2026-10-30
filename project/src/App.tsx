@@ -6,6 +6,7 @@ import { initializeOneSignal } from './lib/oneSignal'
 import LandingPage from './pages/public/LandingPage'
 import TicketFormPage from './pages/public/TicketFormPage'
 import TicketStatusPage from './pages/public/TicketStatusPage'
+import TicketPaymentReceiptPage from './pages/public/TicketPaymentReceiptPage'
 import MyTicketsPage from './pages/public/MyTicketsPage'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminLayout from './pages/admin/AdminLayout'
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/reserve" element={<TicketFormPage />} />
       <Route path="/ticket/:token" element={<TicketStatusPage />} />
+      <Route path="/payment-receipt/:token" element={<TicketPaymentReceiptPage />} />
       <Route path="/my-tickets" element={<MyTicketsPage />} />
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
