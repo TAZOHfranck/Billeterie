@@ -30,6 +30,8 @@ export default function TicketPaymentReceiptPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -38,13 +40,19 @@ export default function TicketPaymentReceiptPage() {
       setLoading(true)
       setNotFound(false)
       setError(false)
+      setLoadError(false)
       const [receiptResult, eventResult] = await Promise.all([
         supabase.rpc('get_approved_tranche_receipt', { p_receipt_token: token }),
         supabase.from('event_settings').select('event_name, event_location').limit(1).maybeSingle(),
       ])
 
       if (!active) return
-      if (receiptResult.error || !receiptResult.data) {
+      if (receiptResult.error) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
+      if (!receiptResult.data) {
         setNotFound(true)
         setLoading(false)
         return
@@ -79,10 +87,23 @@ export default function TicketPaymentReceiptPage() {
     }
 
     return () => { active = false }
-  }, [token])
+  }, [token, retryCount])
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center bg-[#100806]"><Loader2 className="h-8 w-8 animate-spin text-accent-300" /></div>
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#100806] px-6 text-center">
+        <div>
+          <XCircle className="mx-auto h-16 w-16 text-amber-300" />
+          <h1 className="mt-4 text-2xl font-bold text-white">Ticket temporairement inaccessible</h1>
+          <p className="mt-2 text-gray-300">Impossible de charger ce reçu. Réessayez dans quelques instants.</p>
+          <button type="button" onClick={() => setRetryCount(count => count + 1)} className="btn-primary mt-6">Réessayer</button>
+        </div>
+      </div>
+    )
   }
 
   if (notFound || !receipt) {

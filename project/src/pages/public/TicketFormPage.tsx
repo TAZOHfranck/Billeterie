@@ -148,24 +148,26 @@ export default function TicketFormPage() {
       if (insertError) throw insertError
 
       let trancheId: string | null = null
+      let emailWarning: string | null = null
       if (paymentMode === 'installment') {
-        const { data: tranche } = await supabase
-          .from('ticket_payment_tranches')
-          .select('id')
-          .eq('request_id', requestId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        trancheId = tranche?.id || null
+        const { data, error: trancheLookupError } = await supabase.rpc('get_user_initial_ticket_tranche', {
+          p_request_id: requestId,
+        })
+        if (trancheLookupError) {
+          emailWarning = 'Votre demande est enregistrée, mais le versement ne peut pas être associé à l’email admin.'
+        } else {
+          trancheId = data
+        }
       }
 
-      const { error: notificationError } = await supabase.functions.invoke('send-ticket-request-email', {
-        body: { request_id: requestId, tranche_id: trancheId },
+      const { data: notificationData, error: notificationError } = await supabase.functions.invoke('send-ticket-request-email', {
+        body: { request_id: requestId, ...(trancheId ? { tranche_id: trancheId } : {}) },
       })
+      if (notificationError || notificationData?.status === 'failed') {
+        emailWarning = 'Votre demande est enregistrée, mais l’email de notification aux administrateurs n’a pas pu être envoyé.'
+      }
       navigate('/my-tickets', {
-        state: notificationError
-          ? { notificationWarning: 'Votre demande est enregistrée, mais l’email de notification aux administrateurs n’a pas pu être envoyé.' }
-          : {},
+        state: emailWarning ? { notificationWarning: emailWarning } : {},
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de la soumission')

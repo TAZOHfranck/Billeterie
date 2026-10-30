@@ -100,7 +100,9 @@ Deno.serve(async request => {
       body: JSON.stringify({
         from: fromEmail,
         to: [adminEmail],
-        subject: `Nouvelle demande de billet - ${notification.full_name}`,
+        subject: isTranche
+          ? `Nouveau versement à vérifier - ${notification.full_name}`
+          : `Nouvelle demande de billet - ${notification.full_name}`,
         html: emailHtml,
       }),
     })

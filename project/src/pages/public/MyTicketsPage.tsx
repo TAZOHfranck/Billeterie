@@ -77,14 +77,16 @@ export default function MyTicketsPage() {
       })
       if (submitError) throw submitError
 
-      await supabase.functions.invoke('send-ticket-request-email', {
+      const { data: notificationData, error: notificationError } = await supabase.functions.invoke('send-ticket-request-email', {
         body: { request_id: request.id, tranche_id: trancheId },
       })
 
       setTrancheRequestId(null)
       setTrancheAmount('')
       setTrancheProof(null)
-      setTrancheMessage('Versement enregistré. Il attend la validation de l’administration.')
+      setTrancheMessage(notificationError || notificationData?.status === 'failed'
+        ? 'Versement enregistré, mais l’email de notification aux administrateurs n’a pas pu être envoyé.'
+        : 'Versement enregistré. Il attend la validation de l’administration.')
       const { data } = await supabase
         .from('ticket_requests')
         .select('*, table:tables(*), payment_method:payment_methods(*), ticket:tickets(qr_token), tranches:ticket_payment_tranches(*)')
