@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Ticket as TicketIcon, Clock, CheckCircle, XCircle, Users, TrendingUp, Table2, ScanLine } from 'lucide-react'
+import { Ticket as TicketIcon, Clock, CheckCircle, XCircle, Users, TrendingUp, Table2, ScanLine, Coins } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
@@ -10,6 +10,7 @@ interface Stats {
   rejected: number
   used: number
   totalRevenue: number
+  totalAdvances: number
   totalSeats: number
 }
 
@@ -33,9 +34,10 @@ export default function AdminDashboard() {
       supabase.from('tickets').select('*, table:tables(name, price)'),
       supabase.from('tables').select('*'),
       supabase.from('ticket_requests').select('id').eq('status', 'pending'),
-    ]).then(([ticketsRes, tablesRes, requestsRes]) => {
-      if (ticketsRes.error || tablesRes.error || requestsRes.error) {
-        setError(ticketsRes.error?.message || tablesRes.error?.message || requestsRes.error?.message || 'Impossible de charger le tableau de bord.')
+      supabase.from('ticket_payment_tranches').select('amount').eq('status', 'approved'),
+    ]).then(([ticketsRes, tablesRes, requestsRes, advancesRes]) => {
+      if (ticketsRes.error || tablesRes.error || requestsRes.error || advancesRes.error) {
+        setError(ticketsRes.error?.message || tablesRes.error?.message || requestsRes.error?.message || advancesRes.error?.message || 'Impossible de charger le tableau de bord.')
         setLoading(false)
         return
       }
@@ -43,10 +45,14 @@ export default function AdminDashboard() {
       const tickets = ticketsRes.data || []
       const tables = tablesRes.data || []
       const pendingRequests = requestsRes.data || []
+      const approvedTranches = advancesRes.data || []
 
       const totalRevenue = tickets
         .filter(t => t.status === 'approved' || t.status === 'used')
         .reduce((sum, t) => sum + (t.table ? Number(t.table.price) * t.quantity : 0), 0)
+
+      const totalAdvances = approvedTranches
+        .reduce((sum, tranche) => sum + Number(tranche.amount), 0)
 
       const totalSeats = tickets
         .filter(t => t.status === 'approved' || t.status === 'used')
@@ -59,6 +65,7 @@ export default function AdminDashboard() {
         rejected: tickets.filter(t => t.status === 'rejected').length,
         used: tickets.filter(t => t.status === 'used').length,
         totalRevenue,
+        totalAdvances,
         totalSeats,
       })
 
@@ -111,7 +118,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Revenue & Capacity */}
-      <div className="grid sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div className="card p-5 sm:p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
@@ -123,6 +130,19 @@ export default function AdminDashboard() {
             </div>
           </div>
           <p className="text-xs text-gray-400">Réservations confirmées par l’administration</p>
+        </div>
+
+        <div className="card p-5 sm:p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+              <Coins className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-gray-500">Avances perçues</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats?.totalAdvances.toLocaleString() || 0} F</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Somme des tranches validées, même si le billet n’est pas encore payé en totalité</p>
         </div>
 
         <div className="card p-5 sm:p-6">
