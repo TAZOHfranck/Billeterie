@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Ticket as TicketIcon, Table2, CreditCard, Settings, ScanLine, LogOut, QrCode } from 'lucide-react'
+import { LayoutDashboard, Ticket as TicketIcon, ClipboardList, Table2, CreditCard, Settings, ScanLine, LogOut, QrCode } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const navItems = [
   { to: '/admin', label: 'Accueil', icon: LayoutDashboard, end: true },
+  { to: '/admin/reservations', label: 'Réservations', icon: ClipboardList },
   { to: '/admin/tickets', label: 'Billets', icon: TicketIcon },
   { to: '/admin/scanner', label: 'Scan', icon: ScanLine },
   { to: '/admin/tables', label: 'Tables', icon: Table2 },

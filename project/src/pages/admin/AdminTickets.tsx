@@ -6,7 +6,18 @@ import { Link, useNavigate } from 'react-router-dom'
 
 type FilterStatus = 'all' | TicketStatus
 
-export default function AdminTickets() {
+type AdminTicketsView = 'reservations' | 'tickets'
+
+interface TableAccounting {
+  id: string
+  name: string
+  issuedTickets: number
+  places: number
+  expectedAmount: number
+  collectedAmount: number
+}
+
+export default function AdminTickets({ view = 'tickets' }: { view?: AdminTicketsView }) {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
   const [requests, setRequests] = useState<TicketRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -159,6 +170,52 @@ export default function AdminTickets() {
     return matchesSearch && matchesStatus
   })
 
+  const accountingByTable = new Map<string, TableAccounting>()
+  const getTableAccounting = (id: string | null, name: string | undefined) => {
+    const key = id || `unknown:${name || 'N/A'}`
+    let accounting = accountingByTable.get(key)
+    if (!accounting) {
+      accounting = {
+        id: key,
+        name: name || 'Table indisponible',
+        issuedTickets: 0,
+        places: 0,
+        expectedAmount: 0,
+        collectedAmount: 0,
+      }
+      accountingByTable.set(key, accounting)
+    }
+    return accounting
+  }
+  const linkedTicketIds = new Set(requests.flatMap(request => request.ticket_id ? [request.ticket_id] : []))
+
+  requests.forEach(request => {
+    if (request.status === 'rejected') return
+    const accounting = getTableAccounting(request.table_id, request.table?.name)
+    accounting.expectedAmount += Number(request.target_amount) || 0
+    accounting.collectedAmount += Number(request.approved_amount) || 0
+  })
+
+  tickets.forEach(ticket => {
+    const hasReservation = linkedTicketIds.has(ticket.id)
+    if (!hasReservation && ticket.status === 'rejected') return
+
+    const accounting = getTableAccounting(ticket.table_id, ticket.table?.name)
+    if (ticket.status === 'approved' || ticket.status === 'used') {
+      accounting.issuedTickets += 1
+      accounting.places += Number(ticket.quantity) || 0
+    }
+
+    if (hasReservation) return
+    const ticketAmount = Number(ticket.table?.price || 0) * (Number(ticket.quantity) || 0)
+    if (ticket.status !== 'rejected') accounting.expectedAmount += ticketAmount
+    if (ticket.status === 'approved' || ticket.status === 'used') {
+      accounting.collectedAmount += ticketAmount
+    }
+  })
+
+  const tableAccounting = [...accountingByTable.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+
   const statusBadge = (status: TicketStatus) => {
     const map = {
       pending: { class: 'badge-pending', label: 'En attente' },
@@ -199,18 +256,24 @@ export default function AdminTickets() {
     <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Demandes et billets</h1>
-          <p className="text-gray-500 text-sm mt-1">Un billet et son QR code sont créés uniquement après validation.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{view === 'reservations' ? 'Réservations' : 'Billets'}</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {view === 'reservations'
+              ? 'Consultez les demandes et validez les paiements.'
+              : 'Billets émis et comptabilité par type de table.'}
+          </p>
         </div>
-        <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 self-start">
-          <Download className="w-4 h-4" />
-          Exporter CSV
-        </button>
+        {view === 'tickets' && (
+          <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 self-start">
+            <Download className="w-4 h-4" />
+            Exporter CSV
+          </button>
+        )}
       </div>
 
-      {requestError && <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{requestError}</div>}
+      {view === 'reservations' && requestError && <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{requestError}</div>}
 
-      <div className="card mb-6 overflow-hidden">
+      {view === 'reservations' && <div className="card mb-6 overflow-hidden">
         <div className="border-b border-gray-100 p-4 sm:p-5">
           <h2 className="font-semibold text-gray-900">Demandes de réservation</h2>
           <p className="mt-1 text-sm text-gray-500">Les demandes en attente ne possèdent pas encore de billet ni de QR code.</p>
@@ -356,7 +419,56 @@ export default function AdminTickets() {
           </div>
         )}
       </div>
+      }
 
+      {view === 'tickets' && (
+      <>
+      {(requestError || ticketError) && (
+        <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+          Comptabilité indisponible : {requestError || ticketError}
+        </div>
+      )}
+      <section className="card mb-6 overflow-hidden">
+        <div className="border-b border-gray-100 p-4 sm:p-5">
+          <h2 className="font-semibold text-gray-900">Comptabilité par type de table</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Les paiements encaissés incluent les tranches validées, y compris celles des réservations sans billet émis.
+          </p>
+        </div>
+        {requestsLoading || loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary-600" /></div>
+        ) : requestError || ticketError ? (
+          <p className="p-6 text-center text-sm text-gray-500">Les données sont incomplètes ; les totaux ne peuvent pas être calculés.</p>
+        ) : tableAccounting.length === 0 ? (
+          <p className="p-6 text-center text-sm text-gray-500">Aucune comptabilité disponible.</p>
+        ) : (
+          <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {tableAccounting.map(accounting => (
+              <article key={accounting.id} className="rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-gray-900">{accounting.name}</h3>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-gray-500">Billets émis</dt>
+                    <dd className="font-semibold text-gray-900">{accounting.issuedTickets}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Places</dt>
+                    <dd className="font-semibold text-gray-900">{accounting.places}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Montant total attendu</dt>
+                    <dd className="font-semibold text-gray-900">{accounting.expectedAmount.toLocaleString('fr-FR')} F</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-gray-500">Paiements validés / encaissés</dt>
+                    <dd className="font-semibold text-green-700">{accounting.collectedAmount.toLocaleString('fr-FR')} F</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
       {ticketError && <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{ticketError}</div>}
 
       {/* Filters */}
@@ -614,6 +726,12 @@ export default function AdminTickets() {
           </div>
         </div>
       )}
+      </>
+      )}
     </div>
   )
+}
+
+export function AdminReservations() {
+  return <AdminTickets view="reservations" />
 }

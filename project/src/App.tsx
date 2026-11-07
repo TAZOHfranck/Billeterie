@@ -11,7 +11,7 @@ import MyTicketsPage from './pages/public/MyTicketsPage'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
-import AdminTickets from './pages/admin/AdminTickets'
+import AdminTickets, { AdminReservations } from './pages/admin/AdminTickets'
 import AdminTables from './pages/admin/AdminTables'
 import AdminPaymentMethods from './pages/admin/AdminPaymentMethods'
 import AdminSettings from './pages/admin/AdminSettings'
@@ -42,6 +42,7 @@ export default function App() {
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
+        <Route path="reservations" element={<AdminReservations />} />
         <Route path="tickets" element={<AdminTickets />} />
         
         <Route path="tables" element={<AdminTables />} />
