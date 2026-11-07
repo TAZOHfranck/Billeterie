@@ -22,8 +22,10 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
   const [requests, setRequests] = useState<TicketRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [ticketError, setTicketError] = useState<string | null>(null)
+  const [ticketsLoadError, setTicketsLoadError] = useState<string | null>(null)
   const [requestsLoading, setRequestsLoading] = useState(true)
   const [requestError, setRequestError] = useState<string | null>(null)
+  const [requestsLoadError, setRequestsLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [selectedTicket, setSelectedTicket] = useState<TicketWithRelations | null>(null)
@@ -41,9 +43,11 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
       .then(({ data, error }) => {
         if (error) {
           setTicketError(error.message)
+          setTicketsLoadError(error.message)
         } else {
           setTickets(data as TicketWithRelations[] || [])
           setTicketError(null)
+          setTicketsLoadError(null)
         }
         setLoading(false)
       })
@@ -58,9 +62,11 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
 
     if (error) {
       setRequestError(error.message)
+      setRequestsLoadError(error.message)
     } else {
       setRequests((data || []) as TicketRequest[])
       setRequestError(null)
+      setRequestsLoadError(null)
     }
     setRequestsLoading(false)
   }, [])
@@ -423,9 +429,9 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
 
       {view === 'tickets' && (
       <>
-      {(requestError || ticketError) && (
+      {(requestsLoadError || ticketsLoadError) && (
         <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-          Comptabilité indisponible : {requestError || ticketError}
+          Comptabilité indisponible : {requestsLoadError || ticketsLoadError}
         </div>
       )}
       <section className="card mb-6 overflow-hidden">
@@ -437,7 +443,7 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
         </div>
         {requestsLoading || loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary-600" /></div>
-        ) : requestError || ticketError ? (
+        ) : requestsLoadError || ticketsLoadError ? (
           <p className="p-6 text-center text-sm text-gray-500">Les données sont incomplètes ; les totaux ne peuvent pas être calculés.</p>
         ) : tableAccounting.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-500">Aucune comptabilité disponible.</p>
