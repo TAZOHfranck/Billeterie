@@ -17,6 +17,12 @@ interface TableAccounting {
   collectedAmount: number
 }
 
+interface PaymentMethodAccounting {
+  id: string
+  name: string
+  collectedAmount: number
+}
+
 export default function AdminTickets({ view = 'tickets' }: { view?: AdminTicketsView }) {
   const [tickets, setTickets] = useState<TicketWithRelations[]>([])
   const [requests, setRequests] = useState<TicketRequest[]>([])
@@ -221,6 +227,38 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
   })
 
   const tableAccounting = [...accountingByTable.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+
+  const accountingByPaymentMethod = new Map<string, PaymentMethodAccounting>()
+  const addPaymentAmount = (id: string | null, name: string | undefined, amount: number) => {
+    const key = id || `unknown:${name || 'N/A'}`
+    let accounting = accountingByPaymentMethod.get(key)
+    if (!accounting) {
+      accounting = {
+        id: key,
+        name: name || 'Mode de paiement indisponible',
+        collectedAmount: 0,
+      }
+      accountingByPaymentMethod.set(key, accounting)
+    }
+    accounting.collectedAmount += amount
+  }
+
+  requests.forEach(request => {
+    addPaymentAmount(
+      request.payment_method_id,
+      request.payment_method?.name,
+      Number(request.approved_amount) || 0,
+    )
+  })
+
+  tickets.forEach(ticket => {
+    if (linkedTicketIds.has(ticket.id) || (ticket.status !== 'approved' && ticket.status !== 'used')) return
+    const ticketAmount = Number(ticket.table?.price || 0) * (Number(ticket.quantity) || 0)
+    addPaymentAmount(ticket.payment_method_id, ticket.payment_method?.name, ticketAmount)
+  })
+
+  const paymentMethodAccounting = [...accountingByPaymentMethod.values()]
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
 
   const statusBadge = (status: TicketStatus) => {
     const map = {
@@ -470,6 +508,33 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
                     <dd className="font-semibold text-green-700">{accounting.collectedAmount.toLocaleString('fr-FR')} F</dd>
                   </div>
                 </dl>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+      <section className="card mb-6 overflow-hidden">
+        <div className="border-b border-gray-100 p-4 sm:p-5">
+          <h2 className="font-semibold text-gray-900">Montants encaissés par mode de paiement</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Total des paiements validés, y compris les tranches approuvées.
+          </p>
+        </div>
+        {requestsLoading || loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary-600" /></div>
+        ) : requestsLoadError || ticketsLoadError ? (
+          <p className="p-6 text-center text-sm text-gray-500">Les données sont incomplètes ; les totaux ne peuvent pas être calculés.</p>
+        ) : paymentMethodAccounting.length === 0 ? (
+          <p className="p-6 text-center text-sm text-gray-500">Aucun paiement encaissé.</p>
+        ) : (
+          <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {paymentMethodAccounting.map(accounting => (
+              <article key={accounting.id} className="rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-gray-900">{accounting.name}</h3>
+                <p className="mt-3 text-xs text-gray-500">Total encaissé</p>
+                <p className="mt-1 text-lg font-semibold text-green-700">
+                  {accounting.collectedAmount.toLocaleString('fr-FR')} F
+                </p>
               </article>
             ))}
           </div>
