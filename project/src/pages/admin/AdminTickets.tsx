@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download, Mail, Printer } from 'lucide-react'
+import { Search, Loader2, CheckCircle, XCircle, Eye, Filter, Download, FileText, Image as ImageIcon, Mail, Printer } from 'lucide-react'
 import { supabase, STORAGE_BUCKET, supabaseUrl } from '../../lib/supabase'
 import { TicketRequest, TicketWithRelations, TicketStatus } from '../../types'
 import { Link, useNavigate } from 'react-router-dom'
@@ -39,6 +39,7 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [proofUrl, setProofUrl] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const loadTickets = useCallback(() => {
     setLoading(true)
@@ -275,25 +276,160 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
     Navigate(`/ticket/${token}`);
   }
 
-  const exportCSV = () => {
-    const headers = ['Nom', 'Téléphone', 'Table', 'Paiement', 'Places', 'Statut', 'Date']
-    const rows = filtered.map(t => [
-      t.full_name,
-      t.phone,
-      t.table?.name || '',
-      t.payment_method?.name || '',
-      t.quantity,
-      statusBadge(t.status).label,
-      new Date(t.created_at).toLocaleString('fr-FR'),
-    ])
-    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `billets-${Date.now()}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  const exportRows = filtered.map(ticket => [
+    ticket.full_name,
+    ticket.phone,
+    ticket.table?.name || '—',
+    ticket.payment_method?.name || '—',
+    String(ticket.quantity),
+    statusBadge(ticket.status).label,
+    new Date(ticket.created_at).toLocaleString('fr-FR'),
+  ])
+  const exportHeaders = ['Nom', 'Téléphone', 'Table', 'Paiement', 'Places', 'Statut', 'Date']
+  const exportDate = new Date().toLocaleString('fr-FR')
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character]!)
+  const exportFilename = `billets-${new Date().toISOString().slice(0, 10)}`
+
+  const exportPDF = () => {
+    setExportError(null)
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      setExportError('Autorisez les fenêtres pop-up pour générer le PDF.')
+      return
+    }
+
+    const tableRows = exportRows.map(row => `
+      <tr>${row.map(cell => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>
+    `).join('')
+
+    printWindow.document.write(`<!doctype html>
+      <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <title>${exportFilename}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 36px; color: #172033; font: 13px Arial, sans-serif; }
+            header { padding: 28px 30px; border-radius: 14px; color: white; background: #172554; }
+            header p { margin: 0 0 8px; color: #bfdbfe; font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+            header h1 { margin: 0; font-size: 27px; }
+            header span { display: block; margin-top: 10px; color: #dbeafe; font-size: 12px; }
+            .summary { display: flex; justify-content: space-between; margin: 20px 0 14px; color: #475569; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; }
+            th { padding: 11px 9px; color: white; background: #2563eb; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+            td { padding: 11px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+            tbody tr:nth-child(even) { background: #f8fafc; }
+            @page { size: landscape; margin: 12mm; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <header><p>Rapport événement</p><h1>Liste des billets</h1><span>Export généré le ${escapeHtml(exportDate)}</span></header>
+          <div class="summary"><strong>${exportRows.length} billet(s)</strong><span>Vue filtrée de la gestion des billets</span></div>
+          <table><thead><tr>${exportHeaders.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${tableRows || `<tr><td colspan="${exportHeaders.length}">Aucun billet à afficher.</td></tr>`}</tbody></table>
+          <script>window.onload = () => window.setTimeout(() => window.print(), 250)</script>
+        </body>
+      </html>`)
+    printWindow.document.close()
+  }
+
+  const exportPNG = () => {
+    setExportError(null)
+    try {
+      const columnWidths = [250, 170, 170, 175, 100, 145, 220]
+      const width = columnWidths.reduce((sum, columnWidth) => sum + columnWidth, 0) + 80
+      const headerHeight = 62
+      const rowHeight = 72
+      const topHeight = 220
+      const height = topHeight + headerHeight + Math.max(exportRows.length, 1) * rowHeight + 36
+      const scale = 2
+      const canvas = document.createElement('canvas')
+      canvas.width = width * scale
+      canvas.height = height * scale
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Canvas indisponible')
+      context.scale(scale, scale)
+
+      context.fillStyle = '#f1f5f9'
+      context.fillRect(0, 0, width, height)
+      context.fillStyle = '#172554'
+      context.fillRect(0, 0, width, 170)
+      context.fillStyle = '#bfdbfe'
+      context.font = '700 15px Arial'
+      context.fillText('RAPPORT ÉVÉNEMENT', 38, 42)
+      context.fillStyle = '#ffffff'
+      context.font = '700 34px Arial'
+      context.fillText('Liste des billets', 38, 91)
+      context.fillStyle = '#dbeafe'
+      context.font = '16px Arial'
+      context.fillText(`Export généré le ${exportDate}`, 38, 126)
+
+      context.fillStyle = '#ffffff'
+      context.beginPath()
+      context.roundRect(24, 188, width - 48, height - 212, 14)
+      context.fill()
+      context.fillStyle = '#334155'
+      context.font = '700 17px Arial'
+      context.fillText(`${exportRows.length} billet(s)`, 46, 218)
+
+      const tableTop = topHeight
+      context.fillStyle = '#2563eb'
+      context.fillRect(24, tableTop, width - 48, headerHeight)
+      context.font = '700 13px Arial'
+      context.fillStyle = '#ffffff'
+      let x = 40
+      exportHeaders.forEach((header, index) => {
+        context.fillText(header.toLocaleUpperCase('fr-FR'), x, tableTop + 37)
+        x += columnWidths[index]
+      })
+
+      const rowsToDraw = exportRows.length ? exportRows : [['Aucun billet à afficher.', '', '', '', '', '', '']]
+      rowsToDraw.forEach((row, rowIndex) => {
+        const rowTop = tableTop + headerHeight + rowIndex * rowHeight
+        if (rowIndex % 2 === 1) {
+          context.fillStyle = '#f8fafc'
+          context.fillRect(24, rowTop, width - 48, rowHeight)
+        }
+        context.strokeStyle = '#e2e8f0'
+        context.beginPath()
+        context.moveTo(24, rowTop + rowHeight)
+        context.lineTo(width - 24, rowTop + rowHeight)
+        context.stroke()
+
+        x = 40
+        row.forEach((cell, columnIndex) => {
+          const maxChars = Math.max(12, Math.floor((columnWidths[columnIndex] - 22) / 8))
+          const lines = cell.match(new RegExp(`.{1,${maxChars}}`, 'gu')) || ['']
+          context.fillStyle = columnIndex === 5 && cell === 'Validé' ? '#15803d' : '#1e293b'
+          context.font = columnIndex === 5 ? '600 13px Arial' : '13px Arial'
+          lines.slice(0, 2).forEach((line, lineIndex) => {
+            context.fillText(line, x, rowTop + 30 + lineIndex * 19)
+          })
+          x += columnWidths[columnIndex]
+        })
+      })
+
+      canvas.toBlob(blob => {
+        if (!blob) {
+          setExportError('Impossible de générer l’image PNG.')
+          return
+        }
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${exportFilename}.png`
+        anchor.click()
+        URL.revokeObjectURL(url)
+      }, 'image/png')
+    } catch (error) {
+      setExportError(error instanceof Error ? `Impossible de générer l’image PNG : ${error.message}` : 'Impossible de générer l’image PNG.')
+    }
   }
 
   return (
@@ -308,12 +444,22 @@ export default function AdminTickets({ view = 'tickets' }: { view?: AdminTickets
           </p>
         </div>
         {view === 'tickets' && (
-          <button onClick={exportCSV} className="btn-secondary flex items-center gap-2 self-start">
-            <Download className="w-4 h-4" />
-            Exporter CSV
-          </button>
+          <div className="flex flex-wrap gap-2 self-start">
+            <button onClick={exportPDF} className="btn-secondary flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Exporter PDF
+            </button>
+            <button onClick={exportPNG} className="btn-secondary flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" />
+              Exporter PNG
+            </button>
+          </div>
         )}
       </div>
+
+      {view === 'tickets' && exportError && (
+        <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{exportError}</div>
+      )}
 
       {view === 'reservations' && requestError && <div role="alert" className="mb-5 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700">{requestError}</div>}
 
