@@ -33,35 +33,37 @@ export default function AdminDashboard() {
     Promise.all([
       supabase.from('tickets').select('*, table:tables(name, price)'),
       supabase.from('tables').select('*'),
-      supabase.from('ticket_requests').select('id').eq('status', 'pending'),
-      supabase
-        .from('ticket_payment_tranches')
-        .select('amount, request:ticket_requests!inner(status, payment_status, ticket:tickets(status))')
-        .eq('status', 'approved'),
-    ]).then(([ticketsRes, tablesRes, requestsRes, advancesRes]) => {
-      if (ticketsRes.error || tablesRes.error || requestsRes.error || advancesRes.error) {
-        setError(ticketsRes.error?.message || tablesRes.error?.message || requestsRes.error?.message || advancesRes.error?.message || 'Impossible de charger le tableau de bord.')
+      supabase.from('ticket_requests').select('id, status, payment_mode, payment_status, approved_amount, ticket_id'),
+    ]).then(([ticketsRes, tablesRes, requestsRes]) => {
+      if (ticketsRes.error || tablesRes.error || requestsRes.error) {
+        setError(ticketsRes.error?.message || tablesRes.error?.message || requestsRes.error?.message || 'Impossible de charger le tableau de bord.')
         setLoading(false)
         return
       }
 
       const tickets = ticketsRes.data || []
       const tables = tablesRes.data || []
-      const pendingRequests = requestsRes.data || []
-      const approvedTranches = advancesRes.data || []
+      const requests = requestsRes.data || []
+      const pendingRequests = requests.filter(request => request.status === 'pending')
+      const validatedTicketIds = new Set(
+        tickets
+          .filter(ticket => ticket.status === 'approved' || ticket.status === 'used')
+          .map(ticket => ticket.id)
+      )
 
       const totalRevenue = tickets
         .filter(t => t.status === 'approved' || t.status === 'used')
         .reduce((sum, t) => sum + (t.table ? Number(t.table.price) * t.quantity : 0), 0)
 
-      const totalAdvances = approvedTranches
-        .filter(tranche => {
-          const request = tranche.request[0]
-          const ticketStatus = request?.ticket?.[0]?.status
-          const ticketIsValidated = ticketStatus === 'approved' || ticketStatus === 'used'
-          return !(request?.payment_status === 'paid' && request?.status === 'approved' && ticketIsValidated)
+      const totalAdvances = requests
+        .filter(request => request.payment_mode === 'installment')
+        .filter(request => {
+          const paymentIsComplete = request.payment_status === 'paid'
+          const requestIsApproved = request.status === 'approved'
+          const ticketIsValidated = request.ticket_id !== null && validatedTicketIds.has(request.ticket_id)
+          return !(paymentIsComplete && requestIsApproved && ticketIsValidated)
         })
-        .reduce((sum, tranche) => sum + Number(tranche.amount), 0)
+        .reduce((sum, request) => sum + Number(request.approved_amount), 0)
 
       const totalSeats = tickets
         .filter(t => t.status === 'approved' || t.status === 'used')
@@ -151,7 +153,7 @@ export default function AdminDashboard() {
               <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats?.totalAdvances.toLocaleString() || 0} F</p>
             </div>
           </div>
-          <p className="text-xs text-gray-400">Somme des tranches validées, même si le billet n’est pas encore payé en totalité</p>
+          <p className="text-xs text-gray-400">Avances validées des billets pas encore entièrement payés et validés</p>
         </div>
 
         <div className="card p-5 sm:p-6">
