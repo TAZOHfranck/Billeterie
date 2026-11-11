@@ -34,7 +34,10 @@ export default function AdminDashboard() {
       supabase.from('tickets').select('*, table:tables(name, price)'),
       supabase.from('tables').select('*'),
       supabase.from('ticket_requests').select('id').eq('status', 'pending'),
-      supabase.from('ticket_payment_tranches').select('amount').eq('status', 'approved'),
+      supabase
+        .from('ticket_payment_tranches')
+        .select('amount, request:ticket_requests!inner(status, payment_status, ticket:tickets(status))')
+        .eq('status', 'approved'),
     ]).then(([ticketsRes, tablesRes, requestsRes, advancesRes]) => {
       if (ticketsRes.error || tablesRes.error || requestsRes.error || advancesRes.error) {
         setError(ticketsRes.error?.message || tablesRes.error?.message || requestsRes.error?.message || advancesRes.error?.message || 'Impossible de charger le tableau de bord.')
@@ -52,6 +55,12 @@ export default function AdminDashboard() {
         .reduce((sum, t) => sum + (t.table ? Number(t.table.price) * t.quantity : 0), 0)
 
       const totalAdvances = approvedTranches
+        .filter(tranche => {
+          const request = tranche.request[0]
+          const ticketStatus = request?.ticket?.[0]?.status
+          const ticketIsValidated = ticketStatus === 'approved' || ticketStatus === 'used'
+          return !(request?.payment_status === 'paid' && request?.status === 'approved' && ticketIsValidated)
+        })
         .reduce((sum, tranche) => sum + Number(tranche.amount), 0)
 
       const totalSeats = tickets
